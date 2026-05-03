@@ -1,9 +1,41 @@
-# Aether
+<p align="center">
+  <img src="./cover.png" alt="Aether — replayable agents, on the record" width="100%" />
+</p>
 
-> **Replayable, mintable agent runtime on 0G.**
-> Every agent action becomes a content-addressed event in 0G Storage; every inference is TEE-attested via 0G Compute; the agent's running state freezes as a transferable ERC-7857 iNFT — and access is monetised on-chain via x402 + a native ZGUSD stablecoin we deployed on 0G Galileo.
+<h1 align="center">Aether</h1>
 
-ETHGlobal **OpenAgents 2026** submission — targeting four sponsor tracks with one cohesive project.
+<p align="center">
+  <b>Replayable, mintable agent runtime on 0G.</b><br>
+  <i>The bookkeeping layer every agent on 0G is going to need.</i>
+</p>
+
+<p align="center">
+  ETHGlobal <b>OpenAgents 2026</b> &nbsp;·&nbsp; one project, four sponsor tracks
+</p>
+
+---
+
+## What this is
+
+**Aether** is a runtime layer for AI agents on 0G. Every action an agent takes — every inference, every tool call, every observation — becomes a content-addressed event in 0G Storage. Every inference carries a TEE attestation from 0G Compute. The full agent history seals into a transferable ERC-7857 iNFT, sold on-chain via x402 with our native ZGUSD stablecoin, named and resolved live via ENS.
+
+Aether is the **framework**. To prove it works, we built one agent on top of it — **Thornbury**, a self-financing research agent — and shipped the whole loop end to end on 0G Galileo testnet.
+
+---
+
+## Live links
+
+| What | Where |
+|---|---|
+| **Live ENS — Aether root** | [`aaether.eth`](https://sepolia.app.ens.domains/aaether.eth) |
+| **Live ENS — Thornbury subname** | [`thornbury.aaether.eth`](https://sepolia.app.ens.domains/thornbury.aaether.eth) |
+| **AgentNFT (ERC-7857) contract** | [`0x7b09a6…3910f`](https://chainscan-galileo.0g.ai/address/0x7b09a692d9d6c55b9Ed8ddf61e9cde847cC3910f) |
+| **AetherVerifier contract** | [`0x9f4FF2…4070`](https://chainscan-galileo.0g.ai/address/0x9f4FF2Bf926D63045023B5E3790AE13A39184070) |
+| **ZGUSD stablecoin (EIP-3009 on 0G)** | [`0xcCd666…AbfF`](https://chainscan-galileo.0g.ai/address/0xcCd66655fF08b5A25a6bf4bc3b51d380c976AbfF) |
+| **ERC-8004 agent identity** | [agentId `4098` on Sepolia IdentityRegistry](https://sepolia.etherscan.io/address/0x8004A818BFB912233c491871b3d84c89A494BD9e) |
+| **Agent card (IPFS)** | `ipfs://Qme9nLUt2z3MAB7VVcPMLfQh3XgZBRge9Mgfqs87NhG32z` |
+
+Resolve `thornbury.aaether.eth` three times during the demo — three different head values come back, because they're three different agent states. The dynamic record `agent.aether.head` is served live from 0G Storage via CCIP-Read.
 
 ---
 
@@ -28,32 +60,55 @@ ETHGlobal **OpenAgents 2026** submission — targeting four sponsor tracks with 
 
 ## The thesis
 
-Existing standards already define how an agent is **named** (ENS / ERC-8004) and **owned** (ERC-7857). What none of them define is what an agent **is**: nobody has shipped the agent's *own life history* — its inferences, fetches, decisions — in a verifiable, replayable form.
+Existing standards already define how an agent is **named** (ENS / ERC-8004) and **owned** (ERC-7857). What none of them define is what an agent **is**.
 
-Today, when you mint an agent on 0G, what you mint is a snapshot. A `character.json`. Maybe some weights. The buyer gets a clone, not a being. There is no record of what the agent has done, no proof of what model it ran, no way to replay its decisions. That is the gap Aether fills.
+Today, when you mint an agent on 0G, what you mint is a snapshot. A `character.json`. Maybe some weights. The buyer gets a clone — not a being. There is no record of what the agent has done, no proof of which model it ran, no way to replay its decisions. That is the gap Aether fills.
 
-**Aether is the missing primitive: the agent's life as a content-addressed, encrypted, replayable log on 0G Storage, frozen into the iNFT, sold via x402, resolved live via ENS.**
+> **Aether is the missing primitive: the agent's life as a content-addressed, encrypted, replayable log on 0G Storage, frozen into the iNFT, sold via x402, resolved live via ENS.**
 
-> *"We are the bookkeeping layer every agent on 0G is going to need."*
+That gap blocks four real markets:
+
+- **Insurance** — you can underwrite an agent's behaviour only if you can audit it after the fact.
+- **Resale** — provenance multiplies value; opaque agents trade as commodities.
+- **Compliance** — every AI regulation in flight requires post-hoc replay.
+- **Trust** — buyers of agent output deserve to verify what produced it.
+
+Aether unlocks all four.
 
 ---
 
 ## What we built
 
-| Layer | What it is | Where to find it |
-|---|---|---|
-| **Aether SDK** | TypeScript runtime that records `inference` / `tool_call` / `observation` / `state_mutation` / `mint` events into a Merkle-linked log on 0G Storage and surfaces a clean replay API | `sdk/` |
-| **AetherVerifier.sol** | Custom signature-based `IERC7857DataVerifier` for the ERC-7857 reference contract | `contracts/src/AetherVerifier.sol` |
-| **AgentNFT.sol** | 0G's official ERC-7857 reference (non-upgradeable variant) — deployed unchanged, pointed at our verifier | `contracts/src/AgentNFT.sol` |
-| **ZGUSD.sol** | Native ERC-20 + EIP-3009 stablecoin we deployed on 0G Galileo so the entire x402 buyer flow stays on 0G | `contracts/src/ZGUSD.sol` |
-| **Thornbury** | Self-financing research agent — picks a question, fetches arxiv papers, summarises through `qwen-2.5-7b` on 0G Compute, mints the report as an iNFT, paywalls `/report/:tokenId` | `examples/thornbury/` |
-| **Ammonite (ENS)** | Live agent cards via ENSIP-25 + Durin + CCIP-Read at `aaether.eth` (Sepolia) → resolves dynamic state from 0G Storage at resolve-time | `layers/ammonite/` |
-| **Guard (KeeperHub)** | KeeperHub-backed reliability wrapper for x402 settlements with documented bug-fallback for the live 0G Galileo timeout | `layers/guard/`, `FEEDBACK.md` |
-| **Payments (Uniswap)** | Server-side x402 envelope + EIP-3009 buyer helper that reads everything from the challenge — zero client-side hardcoding | `layers/payments/` |
-| **Frontend** | Vite + React mission-control terminal; four pages (Run / Replay / Buy / Spec); reads asset, network, and EIP-712 domain from the server's challenge | `frontend/` |
-| **TEE worker** | Node.js authority that signs preimage/transfer claims (production swaps for TDX) | `services/tee-worker/` |
+### Aether — the framework (what's competing)
 
-Every layer is wired to **real** infrastructure — real arxiv API, real 0G Compute provider, real `Indexer.upload(MemData)` to 0G Storage, real on-chain mint, real EIP-712 signing, real `transferWithAuthorization()` settlement. The only intentional stub is `AetherVerifier`, which uses ECDSA from a designated authority instead of a real TEE/ZKP attestation — and it implements 0G's `IERC7857DataVerifier` interface verbatim, so production swaps the authority for an Intel TDX worker without changing a line of contract code.
+| Layer | What it is | Where |
+|---|---|---|
+| **Aether SDK** | TypeScript runtime that records typed events into a Merkle-linked log on 0G Storage and surfaces a clean replay API | [`sdk/`](./sdk/) |
+| **AetherVerifier.sol** | Custom signature-based `IERC7857DataVerifier` for the ERC-7857 reference contract | [`contracts/src/AetherVerifier.sol`](./contracts/src/AetherVerifier.sol) |
+| **AgentNFT.sol** | 0G's official ERC-7857 reference, deployed verbatim, pointed at our verifier | [`contracts/src/AgentNFT.sol`](./contracts/src/AgentNFT.sol) |
+| **ZGUSD.sol** | Native ERC-20 + EIP-3009 stablecoin we deployed on 0G Galileo so the entire x402 buyer flow stays on a single chain | [`contracts/src/ZGUSD.sol`](./contracts/src/ZGUSD.sol) |
+| **Frontend** | Vite + React + wagmi mission-control terminal; reads asset, network, and EIP-712 domain entirely from the server's challenge — zero hardcoded addresses | [`frontend/`](./frontend/) |
+| **TEE worker** | Node.js authority that signs preimage / transfer claims (production swaps for TDX) | [`services/tee-worker/`](./services/tee-worker/) |
+
+### Cross-track layers
+
+| Layer | What it does |
+|---|---|
+| **Ammonite (ENS)** | Live agent cards via ENSIP-25 + Durin + CCIP-Read at `aaether.eth` (Sepolia) → resolves dynamic state from 0G Storage at resolve-time. [`layers/ammonite/`](./layers/ammonite/) |
+| **Guard (KeeperHub)** | Wraps every on-chain settlement (mint, transfer, `authorizeUsage`) in a KeeperHub workflow with retry, audit, and a documented testnet-bug fallback. [`layers/guard/`](./layers/guard/) |
+| **Payments (x402)** | Server-side x402 envelope + EIP-3009 buyer helper. [`layers/payments/`](./layers/payments/) |
+
+### The reference agent (what Thornbury is)
+
+**Thornbury** is the example agent we built on top of Aether to demonstrate the full loop. It picks an arxiv question, fetches papers, summarises through `qwen-2.5-7b` on 0G Compute, mints the report as an iNFT, paywalls access through x402 with ZGUSD, and refills its own 0G Compute ledger from the revenue. **A closed economic loop.**
+
+Thornbury is in [`examples/thornbury/`](./examples/thornbury/). Aether is the engine; Thornbury is the first car off the line.
+
+### Everything is real
+
+Every layer is wired to **real** infrastructure — real arxiv API, real 0G Compute provider, real `Indexer.upload(MemData)` to 0G Storage, real on-chain mint, real EIP-712 signing, real `transferWithAuthorization()` settlement.
+
+The only intentional stub is `AetherVerifier`'s ECDSA path — and it implements 0G's `IERC7857DataVerifier` interface verbatim, so production swaps the authority for an Intel TDX worker without changing a line of contract code.
 
 ---
 
@@ -85,12 +140,12 @@ Every layer is wired to **real** infrastructure — real arxiv API, real 0G Comp
 
    Cross-track layers
    ──────────────────
-   • Ammonite (ENS)  — aaether.eth → live agent state via CCIP-Read
-   • Guard (KeeperHub) — workflow wrapping authorizeUsage + retry/fallback
-   • Payments (Uniswap) — x402 envelope + EIP-3009 buyer helper
+   • Ammonite (ENS)       — aaether.eth → live agent state via CCIP-Read
+   • Guard (KeeperHub)    — workflow wrapping authorizeUsage + retry/fallback
+   • Payments (x402)      — challenge envelope + EIP-3009 buyer helper
 ```
 
-A more detailed walkthrough lives in `docs/architecture.md` and `docs/end-to-end-flow.md`.
+A more detailed walkthrough lives in [`docs/architecture.md`](./docs/architecture.md) and [`docs/end-to-end-flow.md`](./docs/end-to-end-flow.md).
 
 ---
 
@@ -98,25 +153,36 @@ A more detailed walkthrough lives in `docs/architecture.md` and `docs/end-to-end
 
 All on **0G Galileo testnet — chain id 16602** unless otherwise noted.
 
-| Artifact | Address / id | Explorer |
+### Core contracts
+
+| Artifact | Address | Explorer |
 |---|---|---|
 | AgentNFT (ERC-7857) | `0x7b09a692d9d6c55b9Ed8ddf61e9cde847cC3910f` | [view](https://chainscan-galileo.0g.ai/address/0x7b09a692d9d6c55b9Ed8ddf61e9cde847cC3910f) |
 | AetherVerifier | `0x9f4FF2Bf926D63045023B5E3790AE13A39184070` | [view](https://chainscan-galileo.0g.ai/address/0x9f4FF2Bf926D63045023B5E3790AE13A39184070) |
-| ZGUSD (EIP-3009) | `0xcCd66655fF08b5A25a6bf4bc3b51d380c976AbfF` | [view](https://chainscan-galileo.0g.ai/address/0xcCd66655fF08b5A25a6bf4bc3b51d380c976AbfF) |
-| Thornbury iNFT | token #1 | [tx](https://chainscan-galileo.0g.ai) |
-| **Ammonite (ENS)** — root name | `aaether.eth` (Sepolia) | [view](https://sepolia.app.ens.domains/aaether.eth) |
-| **Ammonite (ENS)** — L1 resolver (Durin stock) | `0x8A968aB9eb8C084FBC44c531058Fc9ef945c3D61` (Sepolia) | [view](https://sepolia.etherscan.io/address/0x8A968aB9eb8C084FBC44c531058Fc9ef945c3D61) |
-| **Ammonite (ENS)** — L2 registry (Durin) | `0x46f0058d5187b39c5cbdfa325637479bbfbf8a65` (Base Sepolia) | [view](https://sepolia.basescan.org/address/0x46f0058d5187b39c5cbdfa325637479bbfbf8a65) |
-| **Ammonite (ENS)** — DurinL2Registrar | `0x41CE8E3dF8b5828B2d90057D71164d089FF2312f` (Base Sepolia) | [view](https://sepolia.basescan.org/address/0x41CE8E3dF8b5828B2d90057D71164d089FF2312f) |
-| **Ammonite (ENS)** — CCIP-Read gateway | `pnpm ammonite:gateway` → `localhost:8080` (deploy to Cloudflare/Vercel) | – |
-| **Ammonite (ENS)** — custom AmmoniteResolver.sol | written but **not** deployed for demo (Durin's stock resolver was used instead — see note below) | – |
-| ERC-8004 IdentityRegistry | `0x8004A818BFB912233c491871b3d84c89A494BD9e` (Sepolia) | [view](https://sepolia.etherscan.io/address/0x8004A818BFB912233c491871b3d84c89A494BD9e) |
-| ERC-8004 agent id | `4098` | – |
-| Agent card (IPFS) | `ipfs://Qme9nLUt2z3MAB7VVcPMLfQh3XgZBRge9Mgfqs87NhG32z` | – |
+| ZGUSD (EIP-3009 stablecoin) | `0xcCd66655fF08b5A25a6bf4bc3b51d380c976AbfF` | [view](https://chainscan-galileo.0g.ai/address/0xcCd66655fF08b5A25a6bf4bc3b51d380c976AbfF) |
+| Thornbury iNFT | token #1 | [chainscan](https://chainscan-galileo.0g.ai) |
 
-> **Note on AmmoniteResolver.sol** — `contracts/src/AmmoniteResolver.sol` is our custom L1 resolver (wildcard ENSIP-10 + CCIP-Read for dynamic keys). For the live demo we instead pointed `aaether.eth` at **Durin's stock L1 resolver** (`0x8A96…3D61`), since it already implements the L1↔L2 hop we need and works out of the box on Sepolia. The "Ammonite" submission is the **gateway + record schema + dynamic-key set**, not a custom resolver contract; the Solidity file is shipped for production use cases where the Durin resolver isn't a fit.
+### Ammonite (ENS) layer
 
-> All testnet deployments. **Do not** reuse any of the keys committed to history — they are burnable testnet keys and should be rotated before any production use.
+| Artifact | Address / id | Network |
+|---|---|---|
+| ENS root name | [`aaether.eth`](https://sepolia.app.ens.domains/aaether.eth) | Sepolia |
+| ENS subname | [`thornbury.aaether.eth`](https://sepolia.app.ens.domains/thornbury.aaether.eth) | Sepolia |
+| L1 resolver (Durin stock) | [`0x8A968aB9eb8C084FBC44c531058Fc9ef945c3D61`](https://sepolia.etherscan.io/address/0x8A968aB9eb8C084FBC44c531058Fc9ef945c3D61) | Sepolia |
+| L2 registry (Durin) | [`0x46f0058d5187b39c5cbdfa325637479bbfbf8a65`](https://sepolia.basescan.org/address/0x46f0058d5187b39c5cbdfa325637479bbfbf8a65) | Base Sepolia |
+| DurinL2Registrar | [`0x41CE8E3dF8b5828B2d90057D71164d089FF2312f`](https://sepolia.basescan.org/address/0x41CE8E3dF8b5828B2d90057D71164d089FF2312f) | Base Sepolia |
+| CCIP-Read gateway | `pnpm ammonite:gateway` (Node service) | local / hosted |
+| `AmmoniteResolver.sol` | shipped as source for production use; demo uses Durin's stock resolver | – |
+
+### ERC-8004 identity
+
+| Artifact | Address / id |
+|---|---|
+| IdentityRegistry (Sepolia) | [`0x8004A818BFB912233c491871b3d84c89A494BD9e`](https://sepolia.etherscan.io/address/0x8004A818BFB912233c491871b3d84c89A494BD9e) |
+| Agent id | `4098` |
+| Agent card (IPFS) | `ipfs://Qme9nLUt2z3MAB7VVcPMLfQh3XgZBRge9Mgfqs87NhG32z` |
+
+> All testnet deployments. Do not reuse the demo keys — they are burnable testnet keys; rotate before any production use.
 
 ---
 
@@ -124,7 +190,7 @@ All on **0G Galileo testnet — chain id 16602** unless otherwise noted.
 
 ```
 aether/
-├── contracts/                # Hardhat workspace
+├── contracts/                     # Hardhat workspace
 │   ├── src/
 │   │   ├── AetherVerifier.sol     # IERC7857DataVerifier, sig-based
 │   │   ├── AgentNFT.sol           # 0G reference, non-upgradeable variant
@@ -132,53 +198,43 @@ aether/
 │   │   ├── AmmoniteResolver.sol   # ENS L1 resolver with CCIP-Read
 │   │   ├── DurinL2Registrar.sol   # Durin subname mint helper
 │   │   └── interfaces/
-│   └── scripts/                   # deploy.ts, deploy-agentnft.ts, ...
+│   └── scripts/                   # deploy.ts, deploy-agentnft.ts, …
 │
-├── sdk/                       # @aether/sdk (TypeScript runtime)
+├── sdk/                           # @aether/sdk — the runtime
 │   └── src/
-│       ├── aether.ts          # Public Aether class
-│       ├── events.ts          # Event types + canonical hashing
-│       ├── compute/           # 0G Compute broker wrapper (TEE-aware)
-│       ├── storage/           # 0G Storage adapter (encryption + log)
-│       ├── replay/            # Deterministic replay engine
-│       └── erc8004/           # ERC-8004 IdentityRegistry client
+│       ├── aether.ts              # Public Aether class
+│       ├── events.ts              # Event types + canonical hashing
+│       ├── compute/               # 0G Compute broker wrapper (TEE-aware)
+│       ├── storage/               # 0G Storage adapter (encryption + log)
+│       ├── replay/                # Deterministic replay engine
+│       └── erc8004/               # ERC-8004 IdentityRegistry client
 │
-├── frontend/                  # Vite + React + Tailwind demo UI
+├── frontend/                      # Vite + React + Tailwind UI
 │   └── src/
-│       ├── pages/             # Home (Run) · Agent (Replay) · Buy · Architecture
-│       ├── components/        # EventStream, EventCard, TxLink, WalletButton, …
-│       ├── hooks/useAgent.ts  # Drives the SSE stream (with fixture fallback)
-│       └── lib/               # wagmi config, addresses, format helpers
+│       ├── pages/                 # Run · Replay · Buy · Spec
+│       ├── components/            # EventStream, EventCard, TxLink, …
+│       ├── hooks/useAgent.ts      # SSE-driven event stream
+│       └── lib/                   # wagmi config, addresses, format
 │
 ├── services/
-│   └── tee-worker/            # Node.js TEE authority (dev) — TDX in prod
+│   └── tee-worker/                # TEE authority (Node.js dev → TDX prod)
 │
 ├── layers/
-│   ├── ammonite/              # ENS dynamic agent cards (CCIP-Read gateway)
-│   ├── guard/                 # KeeperHub workflow wrapper + fallback
-│   └── payments/              # x402 envelope helpers, EIP-3009 buyer
+│   ├── ammonite/                  # ENS dynamic agent cards (CCIP-Read)
+│   ├── guard/                     # KeeperHub workflow wrapper
+│   └── payments/                  # x402 envelope + EIP-3009 buyer
 │
 ├── examples/
-│   └── thornbury/             # Self-financing research agent
-│       ├── src/agent.ts       # The agent loop
-│       └── src/server.ts      # Express + x402 paywall + SSE
+│   └── thornbury/                 # The reference agent built on Aether
 │
 ├── scripts/
-│   ├── day0/                  # 10 health checks before recording demo
-│   ├── e2e/                   # start-all.ts, demo-flow.ts
-│   ├── setup/                 # check-zgusd.ts, mint-zgusd.ts, …
-│   └── registration/          # ERC-8004 + Durin set-registry helpers
+│   ├── day0/                      # 10 health checks
+│   ├── e2e/                       # start-all.ts, demo-flow.ts
+│   ├── setup/                     # ZGUSD mint, …
+│   └── registration/              # ERC-8004 + Durin helpers
 │
-├── submissions/               # Per-track submission READMEs
-│   ├── 0g-framework/          # Best Agent Framework
-│   ├── 0g-agents/             # Best iNFT (Thornbury)
-│   ├── ens/                   # Best ENS for AI Agents
-│   └── keeperhub/             # Best Use of KeeperHub
-│
-├── docs/                      # architecture, end-to-end, deploy, demo-script
-├── FEEDBACK.md                # KeeperHub Builder Bounty submission
-├── PITCH_FOR_0G.md            # Live pitch script for 0G team
-└── package.json               # pnpm workspace root
+├── docs/                          # architecture, end-to-end, demo-script
+└── submissions/                   # Per-track submission READMEs
 ```
 
 ---
@@ -187,23 +243,20 @@ aether/
 
 | Tool | Version | Why |
 |---|---|---|
-| Node.js | **>= 22** | 0G SDKs require modern Node; tsx ESM loader |
+| Node.js | **>= 22** | 0G SDKs require modern Node |
 | pnpm | **>= 9** | Workspace package manager |
-| git | any modern | clone |
-| MetaMask (or any injected wallet) | latest | sign EIP-712, mint, buy |
+| git | any | clone |
+| MetaMask | latest | sign EIP-712, mint, buy |
 
 Funded testnet wallets (free faucets):
 
 | Network | Why | Faucet |
 |---|---|---|
-| 0G Galileo (chain 16602) | Deploy + run agent + mint iNFT | Discord faucet at `discord.com/invite/0glabs` |
+| 0G Galileo (16602) | Deploy + run agent + mint iNFT | Discord — `discord.com/invite/0glabs` |
 | Sepolia | ERC-8004 register + ENS Durin parent | publicnode.com / Alchemy |
 | Base Sepolia | Durin L2 registry deploy | basescan.org faucet |
 
-Optional accounts:
-
-- KeeperHub API token (`app.keeperhub.com`) — for the Guard layer; flow degrades gracefully without it
-- Pinata JWT — for IPFS pinning of the ERC-8004 agent card
+Optional: KeeperHub API token (`app.keeperhub.com`), Pinata JWT (for IPFS pinning).
 
 ---
 
@@ -212,12 +265,10 @@ Optional accounts:
 ### 1. Clone and install
 
 ```bash
-git clone https://github.com/<your-team>/aether
-cd aether
+git clone https://github.com/Aaether-ORG/Aether-monorepo
+cd Aether-monorepo
 pnpm install
 ```
-
-This bootstraps every workspace package: `contracts/`, `sdk/`, `frontend/`, `services/tee-worker/`, `layers/{ammonite,guard,payments}/`, `examples/thornbury/`, `scripts/`.
 
 ### 2. Configure environment
 
@@ -229,13 +280,13 @@ $EDITOR .env
 Fill at minimum:
 
 ```
-ZG_TESTNET_PRIVATE_KEY=0x…       # funded on 0G Galileo
-AGENT_OWNER_PRIVATE_KEY=0x…      # same wallet OK for dev
-AETHER_TEE_AUTHORITY_KEY=0x…     # same key OK for dev (TDX in prod)
-SEPOLIA_PRIVATE_KEY=0x…          # for ERC-8004 + ENS
+ZG_TESTNET_PRIVATE_KEY=0x…
+AGENT_OWNER_PRIVATE_KEY=0x…
+AETHER_TEE_AUTHORITY_KEY=0x…
+SEPOLIA_PRIVATE_KEY=0x…
 ```
 
-Aether-specific env that gets populated as you deploy:
+After deploying the contracts, set:
 
 ```
 AETHER_VERIFIER_ADDRESS=
@@ -245,22 +296,23 @@ ZGUSD_NAME=ZG-USD
 ZGUSD_VERSION=2
 ZGUSD_DECIMALS=6
 X402_NETWORK=16602
-AGENT_PAYMENT_ADDRESS=0x…        # the seller / Thornbury wallet
+AGENT_PAYMENT_ADDRESS=0x…
 AETHER_TOKEN_ID=1
 ERC8004_AGENT_ID=4098
 ENS_PARENT=aaether.eth
 ```
 
+> **Never commit `.env`.** It is gitignored. Treat any leaked key as compromised and rotate.
 
-### 3. Day-0 verification — DO NOT SKIP
+### 3. Day-0 verification
 
 ```bash
 pnpm day0
 ```
 
-Runs 10 sub-checks (RPC reachable, balance > 0, 0G Compute provider responsive, 0G Storage upload working, ERC-8004 contracts callable, x402 envelope round-trips, KeeperHub auth, ENS resolution, …). Each check finishes in < 30 s. Fix any RED before continuing.
+Runs 10 health checks (RPC reachable, balance > 0, 0G Compute responsive, 0G Storage upload working, ERC-8004 callable, x402 envelope round-trips, KeeperHub auth, ENS resolves, …). Each check < 30 s. Fix any RED before continuing.
 
-After `pnpm day0:compute` succeeds it prints a provider address — paste it into `.env`:
+After `pnpm day0:compute` succeeds, copy the printed provider address into `.env`:
 
 ```
 ZG_COMPUTE_PROVIDER_ADDRESS=0x…
@@ -268,7 +320,7 @@ ZG_COMPUTE_PROVIDER_ADDRESS=0x…
 
 ### 4. Deploy contracts
 
-#### AetherVerifier (0G Galileo)
+#### AetherVerifier on 0G Galileo
 
 ```bash
 cd contracts
@@ -277,23 +329,23 @@ pnpm test
 pnpm deploy:zg
 ```
 
-Capture the printed `AetherVerifier` address → `.env` → `AETHER_VERIFIER_ADDRESS=`.
+→ capture `AetherVerifier` address → `.env` → `AETHER_VERIFIER_ADDRESS=`.
 
-#### AgentNFT (0G's ERC-7857 reference, pointed at our verifier)
+#### AgentNFT (the ERC-7857 reference)
 
 ```bash
 pnpm tsx scripts/deploy-agentnft.ts
 ```
 
-This deploys 0G's reference contract from the `eip-7857-draft` branch verbatim, configured to use the verifier you just deployed. Capture `AGENT_NFT_ADDRESS` → `.env`.
+→ capture `AGENT_NFT_ADDRESS` → `.env`.
 
-#### ZGUSD (the native stablecoin for x402)
+#### ZGUSD (native stablecoin for x402)
 
 ```bash
 pnpm tsx scripts/deploy-zgusd.ts
 ```
 
-Deploys our `ERC-20 + EIP-3009 + EIP-712` stablecoin on 0G Galileo. Domain name is `"ZG-USD"`, version `"2"`, decimals `6` — these MUST match `.env` exactly because the buyer signs EIP-712 against them.
+EIP-712 domain: `name="ZG-USD"`, `version="2"`, `decimals=6`. These MUST match `.env`.
 
 Mint a test float to your buyer wallet:
 
@@ -301,13 +353,11 @@ Mint a test float to your buyer wallet:
 pnpm tsx scripts/setup/mint-zgusd.ts --to 0xYourWallet --amount 100
 ```
 
-#### (optional) AmmoniteResolver on Base Sepolia for ENS
+#### (optional) AmmoniteResolver on Base Sepolia
 
 ```bash
 pnpm deploy:resolver
 ```
-
-Then wire as the ENS resolver via `durin.dev` (or directly in the ENS app). The ENS parent name is `aaether.eth` on Sepolia.
 
 ### 5. Register the agent on ERC-8004
 
@@ -315,7 +365,7 @@ Then wire as the ENS resolver via `durin.dev` (or directly in the ENS app). The 
 pnpm register:erc8004
 ```
 
-Hits Sepolia `IdentityRegistry` (`0x8004A818BFB912233c491871b3d84c89A494BD9e`), pins the agent card to IPFS via Pinata, and sets the Durin record. Captures `agentId` (we got 4098).
+Hits Sepolia IdentityRegistry, pins the agent card to IPFS via Pinata, sets the Durin record. Captures `agentId` (we got 4098).
 
 ### 6. Run all four services
 
@@ -324,7 +374,7 @@ cd ..
 pnpm e2e
 ```
 
-Boots, with prefixed coloured logs:
+Boots:
 
 | Service | URL |
 |---|---|
@@ -351,77 +401,69 @@ pnpm ammonite:gateway      # http://localhost:8080
 ### From the frontend
 
 1. Open http://localhost:5173.
-2. Connect a wallet — the **AUTH NODE** key prompts MetaMask. Approve the chain switch to 0G Galileo (16602).
-3. Pick a preset question (or type your own) on the Run page. Click **EXECUTE**.
-4. Watch the event tape stream in: `OBSRV` (arxiv hits) → `INFER` (qwen-2.5-7b summaries, each TEE-attested) → `INFER` (final synthesis) → `MUTAT` (state set) → `MINT`.
-5. The mint receipt appears with the iNFT token id and a chainscan-galileo tx link.
-6. Click **REPLAY ▶** to open `/agent/:tokenId` — black-box recorder readout reconstructs the event chain frame-by-frame, then verifies all `prevHash` links in O(n).
-7. Click **BUY REPORT · x402** to open `/buy`. Enter the token id (defaults to 1). The live ZGUSD ticker shows your wallet's balance and the seller's balance. Hit **EXECUTE ORDER**:
+2. Connect a wallet — the **AUTH NODE** key prompts MetaMask. Approve chain switch to 0G Galileo (16602).
+3. Pick a preset question on the Run page → click **EXECUTE ▶**.
+4. Watch the event tape: `OBSRV` → `INFER` (TEE-attested) → `MUTAT` → `MINT`.
+5. Mint receipt appears with the iNFT token id and a chainscan-galileo tx link.
+6. Click **REPLAY ▶** to open `/agent/:tokenId` — black-box recorder reconstructs the event chain frame-by-frame, verifies all `prevHash` links.
+7. Click **BUY REPORT · x402** to open `/buy`. Enter the token id (defaults to 1). The live ZGUSD ticker shows your real on-chain balance. Hit **EXECUTE ORDER**:
    - Server returns `402` with `PAYMENT-REQUIRED` header.
-   - Frontend parses `accepts[0]`, reads the asset / payTo / amount / EIP-712 domain (name + version + decimals) — **nothing is hardcoded**.
+   - Frontend parses `accepts[0]`, reads asset / payTo / amount / EIP-712 domain — **nothing hardcoded**.
    - Wallet signs `TransferWithAuthorization` typed-data.
-   - Server submits real `ZGUSD.transferWithAuthorization()` on chain → `settleTxHash`.
-   - Server calls `agentNFT.authorizeUsage(tokenId, buyer)` (via Guard with KeeperHub fallback) → `authzTxHash`.
-   - Server calls KeeperHub for an audit attestation → `auditId`.
+   - Server submits real `ZGUSD.transferWithAuthorization()` → `settleTxHash`.
+   - Server calls `agentNFT.authorizeUsage(tokenId, buyer)` via Guard → `authzTxHash`.
+   - Server fetches a KeeperHub audit attestation → `auditId`.
    - Three tx hashes appear in the proof block; report unlocks.
 
-### Headless e2e (CI-shaped)
+### Headless (CI-shaped)
 
 ```bash
 pnpm e2e:demo "What are the most cited cell-free protein synthesis papers from Q1 2026?"
 ```
 
-This script: health-checks every service → POSTs `/research` → consumes SSE → triggers buy with mock signature → triggers replay → calls Ammonite gateway. Exits non-zero on any failure.
+Health-checks every service → POSTs `/research` → consumes SSE → triggers buy with mock signature → triggers replay → calls Ammonite gateway. Exits non-zero on any failure.
 
 ---
 
 ## Per-track deep dives
 
-### 0G Best Agent Framework — Aether runtime
+### 0G — Aether SDK (framework) + Thornbury (reference agent)
 
-We deploy `0glabs/0g-agent-nft` (eip-7857-draft branch) verbatim and add a single contract: `AetherVerifier`. The SDK is what the framework prize is really about — `aether.chat()`, `aether.tool()`, `aether.observe()`, `aether.setState()`, `aether.mint()`. Each call generates a typed event, encrypts it with the agent's AES-128 master key (16 bytes — matching ERC-7857's `bytes16 sealedKey` constraint), uploads it via `Indexer.upload(MemData, …)`, and updates the event-hash chain.
+We deploy `0glabs/0g-agent-nft` (eip-7857-draft branch) verbatim and add a single contract: `AetherVerifier`. The SDK is the bookkeeping primitive — `aether.chat / tool / observe / setState / mint`. Each call generates a typed event, encrypts it with the agent's AES-128 master key (16 bytes — matching ERC-7857's `bytes16 sealedKey` constraint), uploads it via `Indexer.upload(MemData, …)`, and updates the event-hash chain.
 
-Why "framework-level": this is the bookkeeping layer every other agent on 0G will need — for compliance, for resale, for insurance, for replay.
+Every primitive 0G ships is wired in:
 
-Submission README → `submissions/0g-framework/README.md`
+- **0G Chain (16602)** — three of our contracts: AgentNFT, AetherVerifier, ZGUSD.
+- **0G Storage** — every event canonical-JSON-encoded, encrypted, uploaded with `Indexer.upload(MemData)`.
+- **0G Compute** — `qwen-2.5-7b` runs in TEE; we capture the TeeML attestation and write it into the `InferenceEvent`.
+- **0G Compute ledger** — refilled by Thornbury from x402 revenue. Closed economic loop on 0G primitives alone.
+- **ERC-7857** — used verbatim. `dataHashes[0]` carries the Merkle root of the full event chain.
 
-### 0G Best Autonomous Agents/iNFTs — Thornbury
+Submission → [`submissions/0g-framework/`](./submissions/0g-framework/) and [`submissions/0g-agents/`](./submissions/0g-agents/).
 
-Self-financing research agent. Picks an arxiv-shaped question, fetches papers via the real arxiv API, summarises each via 0G Compute's `qwen-2.5-7b` model with TeeML attestation captured into the event log, synthesises a final report, mints the report as an iNFT, and paywalls `/report/:tokenId` for $0.50 worth of ZGUSD.
+### ENS — Ammonite
 
-The closed economic loop:
+Resolving `aaether.eth` (or `thornbury.aaether.eth`) returns three kinds of records, all through the standard ENS resolution path:
 
-```
-buyer pays ZGUSD ─► server settles via transferWithAuthorization ─► seller balance up
-seller refunds 0G Compute ledger ─► next research session ─► next mint ─► next sale
-```
+1. **ENSIP-25 binding** — text record `agent-registration[<registry>][<agentId>]` proves the ENS name maps to ERC-8004 agent id `4098` on Sepolia (`0x8004A818…BD9e`).
+2. **Service discovery** — text records `agent.services.x402` and `agent.services.mcp` resolve to the agent's payment and Model Context Protocol endpoints.
+3. **Live state** — text records `agent.aether.head`, `agent.uptime.last24h`, `agent.model.version` revert with `OffchainLookup` (EIP-3668) → our gateway returns the value from the agent's running event log on 0G Storage at request time.
 
-Every inference is replayable: buyers can verify which papers Thornbury read and which model produced the synthesis.
+ENSIP-25 standardises *static* binding. Ammonite is the missing **live** layer.
 
-Submission README → `submissions/0g-agents/README.md`
+Submission → [`submissions/ens/`](./submissions/ens/).
 
-### ENS Best Integration — Ammonite
+### KeeperHub — Guard
 
-Resolving `aaether.eth` returns a *live* agent card via standard ENS resolution. Static records live on a Durin L2 registry (Base Sepolia); dynamic records (`agent.aether.head`, `agent.uptime.last24h`, `agent.model.version`) revert with `OffchainLookup` (EIP-3668) → our gateway queries the agent's running event log on 0G Storage → returns the live value.
+Drop-in middleware that turns any on-chain settlement into a KeeperHub workflow with retry, gas optimisation, private routing, and audit trail. We hit a reproducible **Cloudflare 524 timeout** on KeeperHub's broadcaster — only on 0G Galileo (Base Sepolia returns in 539 ms). Documented in [`FEEDBACK.md`](./FEEDBACK.md) for the Builder Feedback Bounty, and shipped a **direct-fallback** path that signs locally with the KeeperHub wallet's exported key after a 90 s timeout. The flow does not break.
 
-ENSIP-25 binding text record (`agent-registration[<registry>][<agentId>]`) verifies the agent on Sepolia ERC-8004 IdentityRegistry. Service-discovery records resolve to `x402://thornbury…` and `mcp://thornbury…` endpoints.
-
-Submission README → `submissions/ens/README.md`
-
-### KeeperHub Best Use — Guard
-
-Drop-in middleware that turns any on-chain settlement into a KeeperHub workflow with retry, gas optimisation, private routing, and audit trail. We attempted to use it for `authorizeUsage` on 0G Galileo and hit a reproducible **Cloudflare 524 timeout** in KeeperHub's broadcaster — Base Sepolia returns in 539 ms, 0G Galileo hangs > 120 s. Documented exactly that bug in `FEEDBACK.md` and shipped a **direct-fallback** path that signs locally with the KeeperHub wallet's exported private key after a 90 s timeout.
-
-The fallback still produces a real on-chain authorize tx — the flow does not break. The audit attestation is recorded either way.
-
-Submission README → `submissions/keeperhub/README.md`
-Builder Feedback Bounty → `FEEDBACK.md`
+Submission → [`submissions/keeperhub/`](./submissions/keeperhub/).
 
 ---
 
 ## Contract reference
 
-### AetherVerifier (`contracts/src/AetherVerifier.sol`)
+### AetherVerifier ([`contracts/src/AetherVerifier.sol`](./contracts/src/AetherVerifier.sol))
 
 Implements 0G's `IERC7857DataVerifier`:
 
@@ -431,23 +473,32 @@ function verifyTransferValidity(bytes[] calldata proofs)
     external view returns (TransferValidityProofOutput[] memory);
 ```
 
-Each proof is `dataHash || ECDSA(authority signs "PREIMAGE" || dataHash || authority)` (or the `"TRANSFER"` variant). Production swaps the ECDSA witness for a TDX/SGX/ZKP attestation — the contract interface stays identical.
+Each proof is `dataHash || ECDSA(authority signs "PREIMAGE" || dataHash || authority)` (or the `"TRANSFER"` variant). Production swaps the ECDSA witness for a TDX/SGX/ZKP attestation — the contract interface is identical.
 
-### AgentNFT (`contracts/src/AgentNFT.sol`)
+### AgentNFT ([`contracts/src/AgentNFT.sol`](./contracts/src/AgentNFT.sol))
 
-0G's official `eip-7857-draft` reference, non-upgradeable variant. We deploy it unchanged. Key entrypoints we exercise: `mint(bytes[] proofs, string[] descriptions, address to)`, `authorizeUsage(uint256 tokenId, address user)`, `transfer(address to, uint256 tokenId, bytes[] proofs)`.
+0G's official `eip-7857-draft` reference, non-upgradeable variant. Deployed unchanged. Key entrypoints we exercise: `mint(bytes[] proofs, string[] descriptions, address to)`, `authorizeUsage(uint256 tokenId, address user)`, `transfer(address to, uint256 tokenId, bytes[] proofs)`.
 
-### ZGUSD (`contracts/src/ZGUSD.sol`)
+### ZGUSD ([`contracts/src/ZGUSD.sol`](./contracts/src/ZGUSD.sol))
 
-A native ERC-20 + EIP-3009 + EIP-712 stablecoin we deployed on 0G Galileo so the entire x402 flow stays on one chain. EIP-712 domain: `name="ZG-USD"`, `version="2"`, `decimals=6`. The TYPEHASH is the standard EIP-3009 `TransferWithAuthorization(address from,address to,uint256 value,uint256 validAfter,uint256 validBefore,bytes32 nonce)`. Faucet method exposed for testnet convenience.
+Native ERC-20 + EIP-3009 + EIP-712 stablecoin we deployed on 0G Galileo so the entire x402 flow stays on one chain. EIP-712 domain: `name="ZG-USD"`, `version="2"`, `decimals=6`. The TYPEHASH is the standard EIP-3009:
 
-### AmmoniteResolver (`contracts/src/AmmoniteResolver.sol`)
+```
+TransferWithAuthorization(
+  address from, address to, uint256 value,
+  uint256 validAfter, uint256 validBefore, bytes32 nonce
+)
+```
+
+Faucet method exposed for testnet convenience.
+
+### AmmoniteResolver ([`contracts/src/AmmoniteResolver.sol`](./contracts/src/AmmoniteResolver.sol))
 
 ENS L1 resolver on Sepolia. Static keys read from internal storage; dynamic keys revert with `OffchainLookup(this, urls, callData, callbackFn, extraData)` per EIP-3668 — wallet calls our gateway, which returns the ABI-encoded live value.
 
-### DurinL2Registrar (`contracts/src/DurinL2Registrar.sol`)
+### DurinL2Registrar ([`contracts/src/DurinL2Registrar.sol`](./contracts/src/DurinL2Registrar.sol))
 
-Helper around Durin's L2 registry (`0x46f0058d5187b39c5cbdfa325637479bbfbf8a65` on Base Sepolia). Mints subnames under `aaether.eth`. The L1 setter requires `setL2Registry(bytes32 node, uint64 chainId, address registry)` — note `uint64`, not `uint256`.
+Helper around Durin's L2 registry (`0x46f0058d…8a65` on Base Sepolia). Mints subnames under `aaether.eth`. The L1 setter signature is `setL2Registry(bytes32 node, uint64 chainId, address registry)` — note `uint64`, not `uint256`.
 
 ---
 
@@ -455,23 +506,21 @@ Helper around Durin's L2 registry (`0x46f0058d5187b39c5cbdfa325637479bbfbf8a65` 
 
 `AetherEvent` is a discriminated union of five types:
 
-```ts
-InferenceEvent       { model, promptHash, outputHash, attestation: { signature, modelId, providerAddress } }
-ToolCallEvent        { tool, argsHash, resultHash }
-ObservationEvent     { source, contentHash }
-StateMutationEvent   { key, prevValueHash, newValueHash }
-MintEvent            { tokenId, contract, metadataHash }
-```
+| Type | Fields |
+|---|---|
+| `InferenceEvent` | `model`, `promptHash`, `outputHash`, `attestation: { signature, modelId, providerAddress }` |
+| `ToolCallEvent` | `tool`, `argsHash`, `resultHash` |
+| `ObservationEvent` | `source`, `contentHash` |
+| `StateMutationEvent` | `key`, `prevValueHash`, `newValueHash` |
+| `MintEvent` | `tokenId`, `contract`, `metadataHash` |
 
-Every event also has `ts` (timestamp) and `prevHash` (the keccak256 of the previous event's canonical JSON). The genesis prevHash is `0x000…0`.
+Every event also has `ts` (timestamp) and `prevHash` (the keccak256 of the previous event's canonical JSON). Genesis prevHash is `0x000…0`.
 
 ```
 eventHash = keccak256(prevHash || canonicalJSON(event))
 ```
 
-Tampering with any event invalidates every downstream link. The whole agent history is verifiable in an O(n) walk.
-
-The iNFT's `dataHashes[0]` is the chained Merkle root over all event root hashes — one root per agent, one chain per replay.
+Tampering with any event invalidates every downstream link. The whole agent history is verifiable in an O(n) walk. The iNFT's `dataHashes[0]` is the chained Merkle root over all event root hashes.
 
 ---
 
@@ -481,31 +530,36 @@ The iNFT's `dataHashes[0]` is the chained Merkle root over all event root hashes
 1. GET /report/:tokenId
    ↓
 2. 402 PAYMENT-REQUIRED  +  base64-JSON header containing:
-       { accepts: [{
+       {
+         accepts: [{
            scheme: "exact",
            network: "16602",
-           maxAmountRequired: "500000",       // 6-dec string → 0.50 ZGUSD
-           asset: "0xcCd…AbfF",                // ZGUSD address
+           maxAmountRequired: "500000",       // 6-dec → 0.50 ZGUSD
+           asset: "0xcCd6…AbfF",               // ZGUSD address
            payTo: "0x73A5…b9Eb",               // seller
            description: "Thornbury report",
-           extra: { name: "ZG-USD", version: "2", decimals: 6, assetTransferMethod: "eip3009" }
-       }] }
+           extra: {
+             name: "ZG-USD", version: "2",
+             decimals: 6, assetTransferMethod: "eip3009"
+           }
+         }]
+       }
    ↓
 3. Buyer's frontend parses accepts[0].
-       Builds EIP-712 typed-data using the **server's** name/version/asset.
-       Wallet signs TransferWithAuthorization(from, to, value, validAfter, validBefore, nonce).
+   Builds EIP-712 typed-data using the SERVER's name/version/asset.
+   Wallet signs TransferWithAuthorization(from, to, value, validAfter, validBefore, nonce).
    ↓
 4. Buyer GET /report/:tokenId  +  PAYMENT-SIGNATURE header (base64 envelope).
    ↓
-5. Server submits ZGUSD.transferWithAuthorization(...)  → settleTxHash on 0G Galileo
+5. Server submits ZGUSD.transferWithAuthorization(...)        → settleTxHash
    Server calls agentNFT.authorizeUsage(tokenId, buyer) via Guard
-       → KeeperHub workflow (fallback on 524 timeout) → authzTxHash
-   Server fetches a KeeperHub audit attestation     → auditId
+       → KeeperHub workflow (fallback on 524 timeout)         → authzTxHash
+   Server fetches a KeeperHub audit attestation               → auditId
    ↓
 6. 200 OK with { report, settleTxHash, authzTxHash, auditId }
 ```
 
-Frontend reads the asset, network, and EIP-712 domain entirely from the server's challenge — there is **no hardcoded asset address, chain, or token name** anywhere in the buyer code (`frontend/src/pages/Buy.tsx`).
+The frontend reads the asset, network, and EIP-712 domain entirely from the server's challenge — there is **no hardcoded asset address, chain, or token name** anywhere in [`frontend/src/pages/Buy.tsx`](./frontend/src/pages/Buy.tsx).
 
 ---
 
@@ -533,9 +587,9 @@ The frontend's `/agent/:tokenId` page renders this as a CRT black-box recorder �
 ```
 Anyone resolves aaether.eth (or thornbury.aaether.eth)
    ↓
-AmmoniteResolver.text(node, "agent.aether.head")
+Resolver.text(node, "agent.aether.head")
    ↓ isDynamicKey ?
-       no  → return static value from storage
+       no  → return static value from Durin L2 registry
        yes → revert OffchainLookup(this, [gatewayUrls], callData, callback, extraData)
    ↓
 Wallet/browser fetches gateway/{sender}/{data}
@@ -545,12 +599,14 @@ Ammonite gateway:
    GET {Thornbury}/sessions/latest/head
    return ABI-encoded string(head_hash) signed for callback
    ↓
-Wallet calls AmmoniteResolver.textCallback(response, extraData)
+Wallet calls Resolver.textCallback(response, extraData)
    ↓
 Returns the live agent head hash
 ```
 
-Static keys (ENSIP-25 binding, service endpoints) live on the Durin L2 registry; dynamic keys flow through the gateway.
+Static keys (ENSIP-25 binding, service endpoints) live on the Durin L2 registry. Dynamic keys flow through the gateway. Try it yourself:
 
----
+- [`aaether.eth`](https://sepolia.app.ens.domains/aaether.eth) — the root agent identity
+- [`thornbury.aaether.eth`](https://sepolia.app.ens.domains/thornbury.aaether.eth) — the running agent's live head
 
+Three resolutions return three different head values.
