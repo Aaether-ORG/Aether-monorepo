@@ -5,8 +5,10 @@
   "authority": "0x73A5021c0935b79D46C2D650821b212dC5b3b9Eb",
   "contracts": {
     "AetherVerifier": "0x9f4FF2Bf926D63045023B5E3790AE13A39184070",
-    "AgentNFT": "0x7b09a692d9d6c55b9Ed8ddf61e9cde847cC3910f"
+    "AgentNFT": "0x7b09a692d9d6c55b9Ed8ddf61e9cde847cC3910f",
+    "ZGUSD": "0xcCd66655fF08b5A25a6bf4bc3b51d380c976AbfF"
   },
-  "timestamp": "2026-04-30T20:35:53.246Z",
-  "AgentNFT": "0x7b09a692d9d6c55b9Ed8ddf61e9cde847cC3910f"
+  "timestamp": "2026-05-03T04:46:24.380Z",
+  "AgentNFT": "0x7b09a692d9d6c55b9Ed8ddf61e9cde847cC3910f",
+  "ZGUSD": "0xcCd66655fF08b5A25a6bf4bc3b51d380c976AbfF"
 }

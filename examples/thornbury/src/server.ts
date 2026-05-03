@@ -199,11 +199,12 @@ app.get('/report/:tokenId', async (req, res) => {
   const buyerAddr = req.header('X-Buyer-Address') ?? req.body?.buyerAddress;
 
   if (!paymentSig) {
+    // x402 challenge — denominated in ZGUSD on 0G Galileo.
     const { header, status } = x402Challenge([{
       scheme: 'exact',
-      network: process.env.X402_NETWORK ?? 'base-sepolia',
-      maxAmountRequired: '500000', // 0.50 USDC (6 decimals)
-      asset: process.env.X402_USDC_BASE_SEPOLIA ?? '0x036CbD53842c5426634e7929541eC2318f3dCF7e',
+      network: process.env.X402_NETWORK ?? '16602',
+      maxAmountRequired: '500000', // 0.50 ZGUSD (6 decimals)
+      asset: process.env.ZGUSD_ADDRESS ?? '0xcCd66655fF08b5A25a6bf4bc3b51d380c976AbfF',
       payTo: process.env.AGENT_PAYMENT_ADDRESS ?? ethers.ZeroAddress,
       description: `Thornbury report ${tokenId}`,
     }]);
@@ -214,9 +215,41 @@ app.get('/report/:tokenId', async (req, res) => {
     return;
   }
 
-  // For the demo we accept any non-empty signature.
-  // Production: POST to facilitator /verify and /settle endpoints.
   console.log(kleur.green(`[server] payment ${paymentSig.slice(0, 24)}… for token ${tokenId} from ${buyerAddr}`));
+
+  // 1a. SETTLE: actually move ZGUSD via transferWithAuthorization.
+  //     Validates the buyer's EIP-3009 signature and pulls funds atomically on-chain.
+  let settleTxHash: string | undefined;
+  try {
+    const decoded = JSON.parse(Buffer.from(paymentSig, 'base64').toString());
+    const { authorization, signature } = decoded.payload;
+    const sig = ethers.Signature.from(signature);
+    const provider = new ethers.JsonRpcProvider(process.env.ZG_RPC_URL!);
+    // Server pays gas for the meta-tx — that's the x402 model.
+    const settler = new ethers.Wallet(process.env.AGENT_OWNER_PRIVATE_KEY!, provider);
+    const zgusd = new ethers.Contract(
+      process.env.ZGUSD_ADDRESS!,
+      [
+        'function transferWithAuthorization(address from, address to, uint256 value, uint256 validAfter, uint256 validBefore, bytes32 nonce, uint8 v, bytes32 r, bytes32 s) external',
+      ],
+      settler,
+    );
+    const tx = await (zgusd as any).transferWithAuthorization(
+      authorization.from,
+      authorization.to,
+      authorization.value,
+      authorization.validAfter,
+      authorization.validBefore,
+      authorization.nonce,
+      sig.v, sig.r, sig.s,
+    );
+    const receipt = await tx.wait();
+    settleTxHash = receipt.hash;
+    console.log(kleur.green(`[server] x402 settle: ZGUSD transferWithAuthorization tx=${settleTxHash}`));
+  } catch (e: any) {
+    console.warn(kleur.yellow(`[server] x402 settle failed: ${e?.shortMessage ?? e?.message ?? e}`));
+    // For demo: continue even if settlement fails (e.g. stub signature). Production should reject.
+  }
 
   // 1. authorizeUsage on the AgentNFT.
   //    Primary path: KeeperHub Guard `execute_contract_call` MCP tool.
@@ -308,9 +341,9 @@ app.get('/report/:tokenId', async (req, res) => {
     return;
   }
 
-  res.setHeader('PAYMENT-RESPONSE', Buffer.from(JSON.stringify({ ok: true, tokenId, auditId, authzTxHash, guardPath })).toString('base64'));
+  res.setHeader('PAYMENT-RESPONSE', Buffer.from(JSON.stringify({ ok: true, tokenId, auditId, authzTxHash, settleTxHash, guardPath })).toString('base64'));
   res.setHeader('Access-Control-Expose-Headers', 'PAYMENT-REQUIRED, PAYMENT-RESPONSE');
-  res.json({ tokenId, agent: 'thornbury', report, auditId, authzTxHash, guardPath });
+  res.json({ tokenId, agent: 'thornbury', report, auditId, authzTxHash, settleTxHash, guardPath });
 });
 
 // === Replay endpoint ===

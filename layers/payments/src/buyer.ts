@@ -214,11 +214,12 @@ export async function fetchWithPayment(
   });
 }
 
-/** Parse a CAIP-2 or named network into a chain ID. */
+/** Parse a CAIP-2, named network, or bare-numeric chain id into a number. */
 function parseChainId(network: string): number {
-  if (network.startsWith('eip155:')) {
-    return Number(network.slice(7));
-  }
+  // Bare numeric chain id, e.g. "16602"
+  if (/^\d+$/.test(network)) return Number(network);
+  // CAIP-2 form, e.g. "eip155:16602"
+  if (network.startsWith('eip155:')) return Number(network.slice(7));
   // Common named networks
   const named: Record<string, number> = {
     'base':              8453,
@@ -231,6 +232,9 @@ function parseChainId(network: string): number {
     'arbitrum-sepolia':  421614,
     'optimism':          10,
     'optimism-sepolia':  11155420,
+    '0g':                16602,
+    '0g-galileo':        16602,
+    'galileo':           16602,
   };
   if (named[network] === undefined) throw new Error(`Unknown network: ${network}`);
   return named[network]!;
