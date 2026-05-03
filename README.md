@@ -11,23 +11,18 @@ ETHGlobal **OpenAgents 2026** submission — targeting four sponsor tracks with 
 
 1. [The thesis](#the-thesis)
 2. [What we built](#what-we-built)
-3. [Tracks targeted](#tracks-targeted)
-4. [Architecture overview](#architecture-overview)
-5. [Live deployments](#live-deployments)
-6. [Repo layout](#repo-layout)
-7. [Local setup — prerequisites](#local-setup--prerequisites)
-8. [Local setup — step-by-step](#local-setup--step-by-step)
-9. [Running the demo end-to-end](#running-the-demo-end-to-end)
-10. [Per-track deep dives](#per-track-deep-dives)
-11. [Contract reference](#contract-reference)
-12. [Event schema](#event-schema)
-13. [Buyer flow — x402 + ZGUSD walkthrough](#buyer-flow--x402--zgusd-walkthrough)
-14. [Replay flow](#replay-flow)
-15. [ENS dynamic resolution](#ens-dynamic-resolution)
-16. [Troubleshooting](#troubleshooting)
-17. [Production-hardening checklist](#production-hardening-checklist)
-18. [Security notes](#security-notes)
-19. [License](#license)
+3. [Architecture overview](#architecture-overview)
+4. [Live deployments](#live-deployments)
+5. [Repo layout](#repo-layout)
+6. [Local setup — prerequisites](#local-setup--prerequisites)
+7. [Local setup — step-by-step](#local-setup--step-by-step)
+8. [Running the demo end-to-end](#running-the-demo-end-to-end)
+9. [Per-track deep dives](#per-track-deep-dives)
+10. [Contract reference](#contract-reference)
+11. [Event schema](#event-schema)
+12. [Buyer flow — x402 + ZGUSD walkthrough](#buyer-flow--x402--zgusd-walkthrough)
+13. [Replay flow](#replay-flow)
+14. [ENS dynamic resolution](#ens-dynamic-resolution)
 
 ---
 
@@ -59,20 +54,6 @@ Today, when you mint an agent on 0G, what you mint is a snapshot. A `character.j
 | **TEE worker** | Node.js authority that signs preimage/transfer claims (production swaps for TDX) | `services/tee-worker/` |
 
 Every layer is wired to **real** infrastructure — real arxiv API, real 0G Compute provider, real `Indexer.upload(MemData)` to 0G Storage, real on-chain mint, real EIP-712 signing, real `transferWithAuthorization()` settlement. The only intentional stub is `AetherVerifier`, which uses ECDSA from a designated authority instead of a real TEE/ZKP attestation — and it implements 0G's `IERC7857DataVerifier` interface verbatim, so production swaps the authority for an Intel TDX worker without changing a line of contract code.
-
----
-
-## Tracks targeted
-
-| Track | Sponsor | Prize pool | Submission |
-|---|---|---|---|
-| Best Agent Framework | 0G Labs | $7,500 | Aether runtime + AetherVerifier (this repo core) |
-| Best Autonomous Agents/iNFTs | 0G Labs | $7,500 (up to 5 × $1,500) | Thornbury research agent |
-| Best ENS Integration for AI Agents | ENS | $2,500 | Ammonite (ENSIP-25 + Durin + CCIP-Read) |
-| Best Use of KeeperHub | KeeperHub | $4,500 | Guard layer |
-| Builder Feedback Bounty | KeeperHub | $250 | `FEEDBACK.md` (live 0G Galileo broadcaster bug, 524 timeout reproducer) |
-
-Each track has a dedicated submission README under `submissions/{0g-framework, 0g-agents, ens, keeperhub}/`.
 
 ---
 
@@ -266,7 +247,6 @@ ERC8004_AGENT_ID=4098
 ENS_PARENT=aaether.eth
 ```
 
-> **NEVER commit `.env`.** It is gitignored. Rotate any key that ever appears in a chat or screenshot.
 
 ### 3. Day-0 verification — DO NOT SKIP
 
@@ -570,47 +550,3 @@ Static keys (ENSIP-25 binding, service endpoints) live on the Durin L2 registry;
 
 ---
 
-## Troubleshooting
-
-| Problem | Fix |
-|---|---|
-| `pnpm install` fails on `@0gfoundation/0g-ts-sdk` | Ensure Node 22+ |
-| `day0:compute` says no provider for the model | List with `broker.inference.listService()`; pick one and update `ZG_COMPUTE_PROVIDER_ADDRESS` |
-| AgentNFT deploy errors on 0G Galileo | Wallet needs ≥ 5 0G testnet tokens; check `pnpm day0:balance` |
-| Frontend shows `FIXTURE MODE` chip | Backend (Thornbury) is unreachable — confirm `pnpm e2e` is running and port 3000 is free |
-| `report for token N not found` | Mint must complete before fetching report. Watch the SSE stream for `MINT` first |
-| KeeperHub auth fails | Check `KEEPERHUB_TOKEN`. The Guard layer degrades to direct-signing fallback; flow still works |
-| KeeperHub 524 timeout on 0G Galileo | **Known bug** — see `FEEDBACK.md`. Direct-signing fallback fires automatically after 90 s |
-| ENS dynamic record returns empty | Gateway needs an active Thornbury session — run a research first so `head` is populated |
-| `ESM import` errors from 0G Compute SDK | We use `createRequire(import.meta.url)` to force CJS loading; if you hit `does not provide an export named 'C'`, ensure you're on the migration to `@0gfoundation/0g-compute-ts-sdk` |
-| Wallet signs but server returns 401 | EIP-712 domain mismatch. The challenge MUST advertise `extra.name="ZG-USD"`, `extra.version="2"`, `extra.decimals=6`; frontend reads those values verbatim |
-
----
-
-## Production-hardening checklist
-
-(Don't ship to mainnet without these.)
-
-- [ ] Replace `AetherVerifier`'s ECDSA path with a real TEE/ZKP verifier (Phala Intel TDX recommended).
-- [ ] Run the TEE worker inside an actual enclave; key never leaves.
-- [ ] Replace mock x402 facilitator pass-through with real `/verify` + `/settle` calls (Coinbase facilitator) once your asset list is finalised.
-- [ ] Audit `AmmoniteResolver` and the gateway before pointing real ENS names at it.
-- [ ] Pin every storage upload — turbo nodes drop after retention.
-- [ ] Use a separate wallet for the TEE authority (not the agent owner).
-- [ ] Add KeeperHub broadcaster health-check before invoking; fall back fast.
-- [ ] Move the ZGUSD owner to a multisig.
-
----
-
-## Security notes
-
-- This is hackathon code. Do not run unaudited contracts on mainnet.
-- AES-128 (16-byte key) is mandated by ERC-7857's `bytes16 sealedKey`. If you need stronger encryption, the spec must grow the field.
-- All testnet keys ever shared in chat or commits are considered burnable and have been treated as such.
-- The Aether SDK never logs raw events — only hashes.
-
----
-
-## License
-
-MIT.
