@@ -11,6 +11,16 @@ export interface X402Accepts {
   asset: string;              // ERC-20 contract address
   payTo: string;
   description: string;
+  /** Optional asset metadata for buyer-side EIP-712 signing (per x402 spec). */
+  extra?: {
+    assetTransferMethod?: 'eip3009' | 'permit2' | 'erc7710';
+    /** EIP-712 domain.name for the asset contract (e.g. "USD Coin", "ZG-USD"). */
+    name?: string;
+    /** EIP-712 domain.version (e.g. "2"). */
+    version?: string;
+    /** Token decimals for human-readable display. */
+    decimals?: number;
+  };
 }
 
 export interface X402Challenge {

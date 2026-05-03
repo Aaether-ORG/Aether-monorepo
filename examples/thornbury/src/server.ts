@@ -199,14 +199,22 @@ app.get('/report/:tokenId', async (req, res) => {
   const buyerAddr = req.header('X-Buyer-Address') ?? req.body?.buyerAddress;
 
   if (!paymentSig) {
-    // x402 challenge — denominated in ZGUSD on 0G Galileo.
+    // x402 challenge. The asset's EIP-712 domain (name+version+decimals) ships in
+    // `extra` so the buyer's browser can sign with zero hard-coded knowledge of
+    // the asset — they get everything from this challenge.
     const { header, status } = x402Challenge([{
       scheme: 'exact',
       network: process.env.X402_NETWORK ?? '16602',
       maxAmountRequired: '500000', // 0.50 ZGUSD (6 decimals)
-      asset: process.env.ZGUSD_ADDRESS ?? '0xcCd66655fF08b5A25a6bf4bc3b51d380c976AbfF',
+      asset: process.env.ZGUSD_ADDRESS!,
       payTo: process.env.AGENT_PAYMENT_ADDRESS ?? ethers.ZeroAddress,
       description: `Thornbury report ${tokenId}`,
+      extra: {
+        assetTransferMethod: 'eip3009',
+        name: process.env.ZGUSD_NAME ?? 'ZG-USD',
+        version: process.env.ZGUSD_VERSION ?? '2',
+        decimals: Number(process.env.ZGUSD_DECIMALS ?? '6'),
+      },
     }]);
     res.status(status)
       .setHeader('PAYMENT-REQUIRED', header)

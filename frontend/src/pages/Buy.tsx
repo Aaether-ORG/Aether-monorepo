@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useAccount } from 'wagmi';
+import { useAccount, useWalletClient, useChainId, useSwitchChain } from 'wagmi';
 import { shorten } from '@/lib/format';
 import { TxLink } from '@/components/TxLink';
 
@@ -15,8 +15,28 @@ type Phase =
   | 'unlocked'
   | 'failed';
 
+/** Parse the server's network field ("16602" / "eip155:16602" / "0g-galileo" → 16602). */
+function parseChainIdFromNetwork(network: string): number {
+  if (/^\d+$/.test(network)) return Number(network);
+  if (network.startsWith('eip155:')) return Number(network.slice(7));
+  const named: Record<string, number> = {
+    'base-sepolia': 84532, 'sepolia': 11155111, '0g-galileo': 16602, 'galileo': 16602,
+  };
+  return named[network] ?? Number.NaN;
+}
+
+/** 32 random bytes from the browser's crypto. */
+function randomNonce(): `0x${string}` {
+  const bytes = new Uint8Array(32);
+  crypto.getRandomValues(bytes);
+  return ('0x' + Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('')) as `0x${string}`;
+}
+
 export function BuyPage() {
   const { isConnected, address } = useAccount();
+  const { data: walletClient } = useWalletClient();
+  const chainId = useChainId();
+  const { switchChainAsync } = useSwitchChain();
   const [tokenId, setTokenId] = useState(AETHER_TOKEN_ID);
   const [sourceToken, setSourceToken] = useState<'ZGUSD' | 'DAI' | 'USDC' | 'USDT'>('ZGUSD');
   const [phase, setPhase] = useState<Phase>('idle');
@@ -29,7 +49,9 @@ export function BuyPage() {
   async function buy() {
     setReport(null); setError(null); setAuthzTxHash(null); setSettleTxHash(null); setAuditId(null);
     try {
-      // 1. GET /report/:id → expect 402
+      if (!walletClient || !address) throw new Error('wallet not connected');
+
+      // 1. GET /report/:id → expect 402 with full PAYMENT-REQUIRED challenge
       setPhase('fetching');
       const r1 = await fetch(`${BACKEND}/report/${tokenId}`);
       if (r1.status !== 402) throw new Error(`expected 402, got ${r1.status}`);
@@ -38,35 +60,85 @@ export function BuyPage() {
       const challenge = JSON.parse(atob(challengeHeader));
       setPhase('challenged');
 
-      // 2. Sign payment via wallet (real EIP-712 / EIP-3009)
-      // For the demo we send a stub PAYMENT-SIGNATURE — server verifies shape only.
-      // After Path B (ZGUSD) lands, wallet will sign real typed-data here.
+      // 2. Read everything from the challenge — zero hardcoded knowledge.
+      const accept = challenge.accepts[0];
+      const targetChainId = parseChainIdFromNetwork(accept.network);
+      if (Number.isNaN(targetChainId)) throw new Error(`unknown network: ${accept.network}`);
+      const domainName = accept.extra?.name;
+      const domainVersion = accept.extra?.version;
+      if (!domainName || !domainVersion) {
+        throw new Error('challenge missing extra.name/extra.version (server must include these)');
+      }
+
+      // Switch wallet to the right chain if needed
+      if (chainId !== targetChainId) {
+        await switchChainAsync({ chainId: targetChainId });
+      }
+
+      // 3. Build EIP-3009 TransferWithAuthorization typed data and ask the wallet to sign
       setPhase('paying');
-      const stubSig = btoa(JSON.stringify({
+      const now = Math.floor(Date.now() / 1000);
+      const validAfter = BigInt(now - 60);
+      const validBefore = BigInt(now + 600);
+      const nonce = randomNonce();
+      const value = BigInt(accept.maxAmountRequired);
+
+      const signature = await walletClient.signTypedData({
+        account: address,
+        domain: {
+          name: domainName,
+          version: domainVersion,
+          chainId: targetChainId,
+          verifyingContract: accept.asset as `0x${string}`,
+        },
+        types: {
+          TransferWithAuthorization: [
+            { name: 'from',         type: 'address' },
+            { name: 'to',           type: 'address' },
+            { name: 'value',        type: 'uint256' },
+            { name: 'validAfter',   type: 'uint256' },
+            { name: 'validBefore',  type: 'uint256' },
+            { name: 'nonce',        type: 'bytes32' },
+          ],
+        },
+        primaryType: 'TransferWithAuthorization',
+        message: {
+          from: address,
+          to: accept.payTo,
+          value,
+          validAfter,
+          validBefore,
+          nonce,
+        },
+      });
+
+      // 4. Build the PAYMENT-SIGNATURE envelope per x402 spec
+      const paymentPayload = {
         x402Version: 2,
-        accepted: challenge.accepts[0],
+        accepted: accept,
         payload: {
-          signature: '0x' + 'a'.repeat(130),
+          signature,
           authorization: {
             from: address,
-            to: challenge.accepts[0].payTo,
-            value: challenge.accepts[0].maxAmountRequired,
-            validAfter: Math.floor(Date.now() / 1000) - 60,
-            validBefore: Math.floor(Date.now() / 1000) + 600,
-            nonce: '0x' + Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join(''),
+            to: accept.payTo,
+            value: value.toString(),
+            validAfter: validAfter.toString(),
+            validBefore: validBefore.toString(),
+            nonce,
           },
         },
-      }));
+      };
+      const paymentSig = btoa(JSON.stringify(paymentPayload));
 
-      // 3. Re-fetch with PAYMENT-SIGNATURE
+      // 5. Re-fetch with PAYMENT-SIGNATURE → server settles real ZGUSD on chain
       setPhase('settling');
       const r2 = await fetch(`${BACKEND}/report/${tokenId}`, {
         headers: {
-          'PAYMENT-SIGNATURE': stubSig,
-          'X-Buyer-Address': address ?? '0x0',
+          'PAYMENT-SIGNATURE': paymentSig,
+          'X-Buyer-Address': address,
         },
       });
-      if (!r2.ok) throw new Error(`server unlock failed: ${r2.status}`);
+      if (!r2.ok) throw new Error(`server unlock failed: ${r2.status} ${await r2.text()}`);
       const body = await r2.json();
       setReport(body.report);
       setAuthzTxHash(body.authzTxHash ?? null);
@@ -74,7 +146,7 @@ export function BuyPage() {
       setAuditId(body.auditId ?? null);
       setPhase('unlocked');
     } catch (e: any) {
-      setError(e?.message ?? String(e));
+      setError(e?.shortMessage ?? e?.message ?? String(e));
       setPhase('failed');
     }
   }
