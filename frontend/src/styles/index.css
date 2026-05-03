@@ -1,45 +1,343 @@
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,700;0,800;1,400&family=Fraunces:ital,opsz,wght@0,9..144,300..900;1,9..144,300..900&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+/* -----------------------------------------------------------------------------
+ *  AETHER — global terminal/instrumentation atmosphere.
+ *  Aesthetic: mid-century mission control × CRT data terminal × engineering log.
+ *  Bone-on-ink with amber phosphor signal, cyan oscilloscope confirmations,
+ *  iron-oxide red for aborts. Two ambient overlays (scanlines + blueprint grid)
+ *  give every page subtle depth without owning any single component.
+ * --------------------------------------------------------------------------- */
+
 :root {
   color-scheme: dark;
-  --grid-bg: radial-gradient(circle at 50% 0%, rgba(124, 242, 196, 0.08) 0%, transparent 50%);
+  --bone:     #E8E1CF;
+  --bone-dim: #C7BFA8;
+  --ink-900:  #07090F;
+  --ink-800:  #101012;
+  --ink-700:  #1B1A18;
+  --phosphor: #FFB454;
+  --scope:    #5CE5E5;
+  --ferric:   #C73E32;
+  --rule:     rgba(232, 225, 207, 0.10);
+  --rule-bright: rgba(232, 225, 207, 0.22);
 }
 
 html, body, #root {
   height: 100%;
-  background: theme('colors.ink.900');
+  background: var(--ink-900);
+}
+
+html {
+  scrollbar-color: rgba(255, 180, 84, 0.25) transparent;
 }
 
 body {
-  background-image: var(--grid-bg);
-  background-attachment: fixed;
-  font-feature-settings: 'cv11', 'ss01';
+  background-color: var(--ink-900);
+  color: var(--bone);
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-feature-settings: 'cv11', 'ss01', 'zero';
+  font-variant-ligatures: none;
   -webkit-font-smoothing: antialiased;
+  position: relative;
+  overflow-x: hidden;
 }
 
+/* Blueprint grid — a quiet 32px lattice that hints at engineering draft paper. */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background-image:
+    linear-gradient(to right,  rgba(232, 225, 207, 0.035) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(232, 225, 207, 0.035) 1px, transparent 1px);
+  background-size: 32px 32px;
+  mask-image: radial-gradient(ellipse at 50% 35%, #000 0%, #000 55%, transparent 95%);
+}
+
+/* CRT scanlines — extremely subtle horizontal raster. Only on >=lg screens. */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  background-image: repeating-linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 0)        0px,
+    rgba(0, 0, 0, 0)        2px,
+    rgba(255, 255, 255, 0.012) 3px,
+    rgba(0, 0, 0, 0)        4px
+  );
+  mix-blend-mode: overlay;
+}
+
+#root {
+  position: relative;
+  z-index: 2;
+}
+
+::selection {
+  background: rgba(255, 180, 84, 0.30);
+  color: var(--bone);
+}
+
+/* -----------------------------------------------------------------------------
+ *  Reusable pieces. Names follow the aesthetic, not Bootstrap.
+ *  bracket-frame  → boxed mission-control panel with corner brackets
+ *  rule           → 1px rule with bracketed end caps
+ *  pip            → small status indicator dot (use with .pip-on / .pip-warn / .pip-bad)
+ *  field          → form input with terminal styling
+ *  key, ledger    → small-caps label + monospace value pairing
+ *  editorial      → display-serif italic accent (use sparingly)
+ *  glow-*         → text shadow halos for hero readouts
+ * --------------------------------------------------------------------------- */
+
 @layer components {
-  .card {
-    @apply rounded-lg bg-ink-800/60 backdrop-blur ring-1 ring-ink-200/10 p-5;
+  .bracket-frame {
+    position: relative;
+    border: 1px solid var(--rule);
+    background: rgba(16, 16, 18, 0.72);
+    backdrop-filter: blur(6px);
+    padding: 1.25rem;
   }
-  .btn {
-    @apply px-4 py-2 rounded-md font-medium transition-colors;
+  .bracket-frame::before,
+  .bracket-frame::after {
+    content: '';
+    position: absolute;
+    width: 14px;
+    height: 14px;
+    border-color: var(--phosphor);
+    border-style: solid;
+    pointer-events: none;
+    opacity: 0.85;
   }
-  .btn-primary {
-    @apply btn bg-accent text-ink-900 hover:bg-accent-dim disabled:opacity-50 disabled:cursor-not-allowed;
+  .bracket-frame::before {
+    top: -1px; left: -1px;
+    border-width: 1px 0 0 1px;
   }
-  .btn-ghost {
-    @apply btn bg-ink-800/60 ring-1 ring-ink-200/10 text-ink-100 hover:bg-ink-800;
+  .bracket-frame::after {
+    bottom: -1px; right: -1px;
+    border-width: 0 1px 1px 0;
   }
-  .pill {
-    @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-mono ring-1 ring-ink-200/15;
+  .bracket-frame-tight {
+    @apply bracket-frame;
+    padding: 0.85rem 1rem;
   }
-  .pill-ok      { @apply pill bg-accent/15  text-accent ring-accent/30; }
-  .pill-warn    { @apply pill bg-warn/15    text-warn   ring-warn/30; }
-  .pill-bad     { @apply pill bg-bad/15     text-bad    ring-bad/30; }
-  .pill-neutral { @apply pill bg-ink-200/5  text-ink-200 ring-ink-200/15; }
-  .mono { @apply font-mono text-ink-200; }
+  .bracket-frame-flush {
+    border: 1px solid var(--rule);
+    background: rgba(16, 16, 18, 0.72);
+    backdrop-filter: blur(6px);
+  }
+
+  .panel-heading {
+    display: flex;
+    align-items: baseline;
+    gap: 0.6rem;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.22em;
+    color: var(--bone-dim);
+  }
+  .panel-heading::before {
+    content: '▍';
+    color: var(--phosphor);
+    font-size: 0.78rem;
+    transform: translateY(1px);
+  }
+
+  .rule {
+    height: 1px;
+    background: var(--rule);
+    position: relative;
+  }
+  .rule::before, .rule::after {
+    content: '';
+    position: absolute;
+    top: -3px;
+    width: 7px;
+    height: 7px;
+    border: 1px solid var(--rule-bright);
+    background: var(--ink-900);
+  }
+  .rule::before { left: 0; }
+  .rule::after  { right: 0; }
+
+  .pip {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--bone-dim);
+    box-shadow: 0 0 0 1px rgba(232, 225, 207, 0.18);
+  }
+  .pip-on   { background: var(--phosphor); box-shadow: 0 0 8px var(--phosphor); }
+  .pip-go   { background: var(--scope);    box-shadow: 0 0 8px var(--scope); }
+  .pip-bad  { background: var(--ferric);   box-shadow: 0 0 8px var(--ferric); }
+  .pip-idle { background: rgba(232, 225, 207, 0.25); }
+
+  .key {
+    font-size: 0.66rem;
+    line-height: 1;
+    text-transform: uppercase;
+    letter-spacing: 0.22em;
+    color: var(--bone-dim);
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  .ledger {
+    display: grid;
+    grid-template-columns: minmax(7rem, 9rem) 1fr;
+    column-gap: 1.25rem;
+    row-gap: 0.45rem;
+    align-items: baseline;
+    font-size: 0.85rem;
+  }
+  .ledger > dt { @apply key; padding-top: 2px; }
+  .ledger > dd { color: var(--bone); font-family: 'JetBrains Mono', monospace; word-break: break-all; }
+
+  .field {
+    width: 100%;
+    background: rgba(7, 9, 15, 0.85);
+    border: 1px solid var(--rule);
+    color: var(--bone);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.92rem;
+    padding: 0.65rem 0.85rem;
+    border-radius: 0;
+    transition: border-color 120ms, box-shadow 120ms;
+    caret-color: var(--phosphor);
+  }
+  .field:focus {
+    outline: none;
+    border-color: var(--phosphor);
+    box-shadow: 0 0 0 1px var(--phosphor), 0 0 18px -6px rgba(255, 180, 84, 0.4);
+  }
+  .field-select {
+    @apply field;
+    appearance: none;
+    background-image:
+      linear-gradient(45deg, transparent 50%, var(--phosphor) 50%),
+      linear-gradient(-45deg, transparent 50%, var(--phosphor) 50%);
+    background-position: calc(100% - 18px) 50%, calc(100% - 13px) 50%;
+    background-size: 5px 5px;
+    background-repeat: no-repeat;
+    padding-right: 2.25rem;
+  }
+
+  /* Buttons */
+  .key-cap {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: var(--phosphor);
+    color: var(--ink-900);
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 700;
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    padding: 0.62rem 1.05rem;
+    border: 1px solid var(--phosphor);
+    border-radius: 0;
+    box-shadow:
+      inset 0 -3px 0 rgba(0, 0, 0, 0.2),
+      0 0 0 1px var(--ink-900),
+      0 0 0 2px rgba(255, 180, 84, 0.4);
+    transition: transform 80ms, box-shadow 80ms, background-color 80ms;
+    cursor: pointer;
+  }
+  .key-cap:hover:not(:disabled) {
+    background: #FFC97A;
+    box-shadow:
+      inset 0 -3px 0 rgba(0, 0, 0, 0.18),
+      0 0 0 1px var(--ink-900),
+      0 0 0 2px rgba(255, 180, 84, 0.7),
+      0 0 24px -6px rgba(255, 180, 84, 0.6);
+  }
+  .key-cap:active:not(:disabled) {
+    transform: translateY(1px);
+    box-shadow:
+      inset 0 1px 0 rgba(0, 0, 0, 0.25),
+      0 0 0 1px var(--ink-900),
+      0 0 0 2px rgba(255, 180, 84, 0.4);
+  }
+  .key-cap:disabled {
+    background: rgba(255, 180, 84, 0.18);
+    color: rgba(232, 225, 207, 0.4);
+    border-color: rgba(255, 180, 84, 0.18);
+    box-shadow: none;
+    cursor: not-allowed;
+  }
+
+  .key-cap-ghost {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    background: transparent;
+    color: var(--bone);
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 500;
+    font-size: 0.74rem;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    padding: 0.5rem 0.85rem;
+    border: 1px solid var(--rule-bright);
+    border-radius: 0;
+    transition: border-color 100ms, color 100ms, background-color 100ms;
+    cursor: pointer;
+  }
+  .key-cap-ghost:hover:not(:disabled) {
+    border-color: var(--phosphor);
+    color: var(--phosphor);
+    background: rgba(255, 180, 84, 0.06);
+  }
+  .key-cap-ghost:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* Status chips */
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    padding: 0.32rem 0.65rem;
+    border: 1px solid var(--rule-bright);
+    color: var(--bone-dim);
+    border-radius: 0;
+  }
+  .chip-on  { color: var(--phosphor); border-color: rgba(255, 180, 84, 0.45); }
+  .chip-go  { color: var(--scope);    border-color: rgba(92, 229, 229, 0.45); }
+  .chip-bad { color: var(--ferric);   border-color: rgba(199, 62, 50, 0.45); }
+  .chip-idle{ color: rgba(232, 225, 207, 0.55); }
+
+  /* Editorial accents — keep these RARE. */
+  .editorial {
+    font-family: 'Fraunces', Georgia, serif;
+    font-style: italic;
+    font-weight: 300;
+    letter-spacing: -0.015em;
+  }
+
+  .glow-phosphor { text-shadow: 0 0 20px rgba(255, 180, 84, 0.45); }
+  .glow-scope    { text-shadow: 0 0 18px rgba(92, 229, 229, 0.45); }
+  .glow-ferric   { text-shadow: 0 0 18px rgba(199, 62, 50, 0.45); }
+
+  /* Inline cursor — used after the prompt arrow. */
+  .cursor::after {
+    content: '▌';
+    color: var(--phosphor);
+    margin-left: 2px;
+    animation: cursor-blink 1.05s steps(2, end) infinite;
+  }
 }
 
 @layer utilities {
@@ -47,5 +345,51 @@ body {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+  .scrim-top {
+    background: linear-gradient(to bottom, var(--ink-900) 0%, transparent 100%);
+  }
+  .scrim-bottom {
+    background: linear-gradient(to top, var(--ink-900) 0%, transparent 100%);
+  }
+  .text-bone { color: var(--bone); }
+  .text-bone-dim { color: var(--bone-dim); }
+  .border-rule { border-color: var(--rule); }
+  .border-rule-bright { border-color: var(--rule-bright); }
+  .nums-tabular { font-variant-numeric: tabular-nums; }
+
+  /* Dashed underline link style for inline txhash anchors. */
+  .terminal-link {
+    color: var(--phosphor);
+    text-decoration: underline;
+    text-decoration-style: dashed;
+    text-underline-offset: 4px;
+    text-decoration-thickness: 1px;
+    text-decoration-color: rgba(255, 180, 84, 0.4);
+    transition: color 100ms, text-decoration-color 100ms;
+  }
+  .terminal-link:hover {
+    color: #FFC97A;
+    text-decoration-color: var(--phosphor);
+  }
+
+  /* Engineering tape — used as the spine of the event stream. */
+  .tape {
+    position: relative;
+  }
+  .tape::before {
+    content: '';
+    position: absolute;
+    left: 13px;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background: repeating-linear-gradient(
+      to bottom,
+      var(--rule-bright) 0,
+      var(--rule-bright) 4px,
+      transparent 4px,
+      transparent 8px
+    );
   }
 }

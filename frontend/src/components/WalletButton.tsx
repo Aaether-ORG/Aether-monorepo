@@ -13,10 +13,11 @@ export function WalletButton() {
     const injectedConnector = connectors.find((c) => c.id === 'injected');
     return (
       <button
-        className="btn-primary"
+        className="key-cap"
         onClick={() => injectedConnector && connect({ connector: injectedConnector })}
       >
-        Connect Wallet
+        <span className="pip pip-on" />
+        AUTH&nbsp;NODE
       </button>
     );
   }
@@ -26,15 +27,26 @@ export function WalletButton() {
     <div className="flex items-center gap-2">
       {wrongChain && (
         <button
-          className="btn-ghost text-warn"
+          className="key-cap-ghost"
+          style={{ borderColor: '#FFB454', color: '#FFB454' }}
           onClick={() => switchChain({ chainId: ogGalileo.id })}
+          title="Switch to 0G Galileo (chain 16602)"
         >
-          Switch to 0G Galileo
+          ⇆ 0G&nbsp;GALILEO
         </button>
       )}
-      <span className="pill-neutral">{shorten(address ?? '')}</span>
-      <button className="btn-ghost text-bad" onClick={() => disconnect()}>
-        Disconnect
+      <span className="chip chip-go">
+        <span className="pip pip-go animate-pulse-soft" />
+        <span className="font-mono nums-tabular tracking-normal normal-case text-bone">
+          {shorten(address ?? '')}
+        </span>
+      </span>
+      <button
+        className="key-cap-ghost hover:!border-ferric hover:!text-ferric"
+        onClick={() => disconnect()}
+        title="Disconnect wallet"
+      >
+        ⏻
       </button>
     </div>
   );

@@ -2,40 +2,76 @@ import type { AetherEvent } from '@/lib/types';
 import { shorten, formatTs } from '@/lib/format';
 import { TxLink } from './TxLink';
 
-// 0G Galileo testnet — chain id where iNFTs live
 const ZG_CHAIN = 16602;
 
-const ICONS: Record<AetherEvent['type'], string> = {
-  inference: '✦',
-  tool_call: '⟐',
-  observation: '◎',
+const GLYPH: Record<AetherEvent['type'], string> = {
+  inference:      '◈',
+  tool_call:      '⊞',
+  observation:    '◉',
   state_mutation: '⇌',
-  mint: '✕',
+  mint:           '✕',
 };
 
-const COLORS: Record<AetherEvent['type'], string> = {
-  inference: 'text-accent',
-  tool_call: 'text-ink-100',
-  observation: 'text-ink-200',
-  state_mutation: 'text-warn',
-  mint: 'text-accent',
+const TYPE_LABEL: Record<AetherEvent['type'], string> = {
+  inference:      'INFER',
+  tool_call:      'TOOL ',
+  observation:    'OBSRV',
+  state_mutation: 'MUTAT',
+  mint:           'MINT ',
+};
+
+const COLOR: Record<AetherEvent['type'], string> = {
+  inference:      'text-phosphor',
+  tool_call:      'text-bone',
+  observation:    'text-scope',
+  state_mutation: 'text-phosphor/80',
+  mint:           'text-phosphor glow-phosphor',
 };
 
 export function EventCard({ event, index }: { event: AetherEvent; index: number }) {
   return (
-    <div className="card animate-slide-in" style={{ animationDelay: `${index * 60}ms` }}>
-      <div className="flex items-start gap-3">
-        <span className={`text-2xl leading-none ${COLORS[event.type]}`}>{ICONS[event.type]}</span>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-1">
-            <span className="font-mono text-sm text-ink-100">#{index}</span>
-            <span className="pill-neutral">{event.type}</span>
-            <span className="text-xs text-ink-400 ml-auto">{formatTs(event.ts)}</span>
-          </div>
-          <EventBody event={event} />
-        </div>
+    <article
+      className="relative pl-10 pr-4 py-3 animate-tape-feed"
+      style={{ animationDelay: `${Math.min(index, 12) * 35}ms` }}
+    >
+      {/* Marker on the tape spine */}
+      <span
+        className={`absolute left-[6px] top-[18px] w-3.5 h-3.5 flex items-center justify-center bg-ink-900 ring-1 ring-rule-bright ${COLOR[event.type]}`}
+        aria-hidden
+      >
+        <span className="text-[0.6rem] leading-none">{GLYPH[event.type]}</span>
+      </span>
+
+      {/* Header line */}
+      <header className="flex items-baseline gap-3 flex-wrap">
+        <span className="font-mono text-[0.66rem] uppercase tracking-widest text-bone-dim/60 nums-tabular">
+          T+{String(index).padStart(3, '0')}
+        </span>
+        <span className={`font-mono text-[0.7rem] tracking-widest ${COLOR[event.type]}`}>
+          {TYPE_LABEL[event.type]}
+        </span>
+        <span className="font-mono text-[0.66rem] text-bone-dim/60 nums-tabular ml-auto">
+          {formatTs(event.ts)}
+        </span>
+        <PrevHashTrail prev={event.prevHash} />
+      </header>
+
+      {/* Body */}
+      <div className="mt-2">
+        <EventBody event={event} />
       </div>
-    </div>
+    </article>
+  );
+}
+
+function PrevHashTrail({ prev }: { prev: string }) {
+  return (
+    <span
+      className="font-mono text-[0.62rem] text-bone-dim/40 hidden sm:inline"
+      title={`prevHash: ${prev}`}
+    >
+      ↳ {shorten(prev, 4, 4)}
+    </span>
   );
 }
 
@@ -43,56 +79,75 @@ function EventBody({ event }: { event: AetherEvent }) {
   switch (event.type) {
     case 'inference':
       return (
-        <div className="space-y-1.5 text-sm">
-          <Row k="model" v={<span className="text-accent font-mono">{event.model}</span>} />
-          <Row k="prompt"    v={<Mono>{shorten(event.promptHash, 8, 6)}</Mono>} />
-          <Row k="output"    v={<Mono>{shorten(event.outputHash, 8, 6)}</Mono>} />
-          <Row k="attested"  v={<span className="pill-ok">TEE-signed by {shorten(event.attestation.providerAddress)}</span>} />
-        </div>
+        <dl className="ledger">
+          <dt>model</dt>
+          <dd className="text-phosphor">{event.model}</dd>
+          <dt>prompt·h</dt>
+          <dd>{shorten(event.promptHash, 10, 8)}</dd>
+          <dt>output·h</dt>
+          <dd>{shorten(event.outputHash, 10, 8)}</dd>
+          <dt>tee·sig</dt>
+          <dd className="flex items-center gap-2">
+            <span className="chip chip-go">
+              <span className="pip pip-go" />
+              ATTESTED
+            </span>
+            <span className="text-bone-dim text-xs">
+              by {shorten(event.attestation.providerAddress)}
+            </span>
+          </dd>
+        </dl>
       );
     case 'tool_call':
       return (
-        <div className="space-y-1.5 text-sm">
-          <Row k="tool"    v={<span className="font-mono">{event.tool}()</span>} />
-          <Row k="args"    v={<Mono>{shorten(event.argsHash, 8, 6)}</Mono>} />
-          <Row k="result"  v={<Mono>{shorten(event.resultHash, 8, 6)}</Mono>} />
-        </div>
+        <dl className="ledger">
+          <dt>tool</dt>
+          <dd className="text-bone">{event.tool}<span className="text-bone-dim/60">()</span></dd>
+          <dt>args·h</dt>
+          <dd>{shorten(event.argsHash, 10, 8)}</dd>
+          <dt>result·h</dt>
+          <dd>{shorten(event.resultHash, 10, 8)}</dd>
+        </dl>
       );
     case 'observation':
       return (
-        <div className="space-y-1.5 text-sm">
-          <Row k="source" v={<a href={event.source} target="_blank" rel="noreferrer" className="text-accent hover:underline truncate-mid block max-w-md">{event.source}</a>} />
-          <Row k="hash"   v={<Mono>{shorten(event.contentHash, 8, 6)}</Mono>} />
-        </div>
+        <dl className="ledger">
+          <dt>source</dt>
+          <dd>
+            <a
+              href={event.source}
+              target="_blank"
+              rel="noreferrer"
+              className="terminal-link truncate-mid block max-w-md"
+            >
+              {event.source}
+            </a>
+          </dd>
+          <dt>content·h</dt>
+          <dd>{shorten(event.contentHash, 10, 8)}</dd>
+        </dl>
       );
     case 'state_mutation':
       return (
-        <div className="space-y-1.5 text-sm">
-          <Row k="key"  v={<span className="font-mono text-warn">{event.key}</span>} />
-          <Row k="from" v={<Mono>{shorten(event.prevValueHash, 8, 6)}</Mono>} />
-          <Row k="to"   v={<Mono>{shorten(event.newValueHash, 8, 6)}</Mono>} />
-        </div>
+        <dl className="ledger">
+          <dt>key</dt>
+          <dd className="text-phosphor">{event.key}</dd>
+          <dt>from</dt>
+          <dd>{shorten(event.prevValueHash, 10, 8)}</dd>
+          <dt>to</dt>
+          <dd>{shorten(event.newValueHash, 10, 8)}</dd>
+        </dl>
       );
     case 'mint':
       return (
-        <div className="space-y-1.5 text-sm">
-          <Row k="token" v={<span className="font-mono text-accent">#{event.tokenId}</span>} />
-          <Row k="contract" v={<TxLink hash={event.contract} chainId={ZG_CHAIN} kind="address" />} />
-          <Row k="root" v={<Mono>{shorten(event.metadataHash, 8, 6)}</Mono>} />
-        </div>
+        <dl className="ledger">
+          <dt>token</dt>
+          <dd className="text-phosphor text-base glow-phosphor">#{event.tokenId}</dd>
+          <dt>contract</dt>
+          <dd><TxLink hash={event.contract} chainId={ZG_CHAIN} kind="address" /></dd>
+          <dt>root·h</dt>
+          <dd>{shorten(event.metadataHash, 10, 8)}</dd>
+        </dl>
       );
   }
-}
-
-function Row({ k, v }: { k: string; v: React.ReactNode }) {
-  return (
-    <div className="flex items-center gap-3">
-      <span className="text-ink-400 text-xs w-16">{k}</span>
-      <span className="flex-1 min-w-0">{v}</span>
-    </div>
-  );
-}
-
-function Mono({ children }: { children: React.ReactNode }) {
-  return <span className="font-mono text-ink-200">{children}</span>;
 }

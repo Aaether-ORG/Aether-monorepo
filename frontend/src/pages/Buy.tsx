@@ -1,5 +1,6 @@
-import { useState } from 'react';
-import { useAccount, useWalletClient, useChainId, useSwitchChain } from 'wagmi';
+import { useEffect, useMemo, useState } from 'react';
+import { useAccount, useWalletClient, useChainId, useSwitchChain, useReadContract } from 'wagmi';
+import { formatUnits } from 'viem';
 import { shorten } from '@/lib/format';
 import { TxLink } from '@/components/TxLink';
 
@@ -15,7 +16,24 @@ type Phase =
   | 'unlocked'
   | 'failed';
 
-/** Parse the server's network field ("16602" / "eip155:16602" / "0g-galileo" → 16602). */
+interface ChallengeAccept {
+  scheme: string;
+  network: string;
+  maxAmountRequired: string;
+  asset: `0x${string}`;
+  payTo: `0x${string}`;
+  description: string;
+  extra?: { name?: string; version?: string; decimals?: number };
+}
+
+const ERC20_BALANCE_ABI = [{
+  type: 'function',
+  name: 'balanceOf',
+  stateMutability: 'view',
+  inputs: [{ name: 'account', type: 'address' }],
+  outputs: [{ name: '', type: 'uint256' }],
+}] as const;
+
 function parseChainIdFromNetwork(network: string): number {
   if (/^\d+$/.test(network)) return Number(network);
   if (network.startsWith('eip155:')) return Number(network.slice(7));
@@ -25,7 +43,6 @@ function parseChainIdFromNetwork(network: string): number {
   return named[network] ?? Number.NaN;
 }
 
-/** 32 random bytes from the browser's crypto. */
 function randomNonce(): `0x${string}` {
   const bytes = new Uint8Array(32);
   crypto.getRandomValues(bytes);
@@ -37,59 +54,107 @@ export function BuyPage() {
   const { data: walletClient } = useWalletClient();
   const chainId = useChainId();
   const { switchChainAsync } = useSwitchChain();
+
   const [tokenId, setTokenId] = useState(AETHER_TOKEN_ID);
-  const [sourceToken, setSourceToken] = useState<'ZGUSD' | 'DAI' | 'USDC' | 'USDT'>('ZGUSD');
   const [phase, setPhase] = useState<Phase>('idle');
+  const [challenge, setChallenge] = useState<{ accepts: ChallengeAccept[] } | null>(null);
   const [report, setReport] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [authzTxHash, setAuthzTxHash] = useState<string | null>(null);
   const [settleTxHash, setSettleTxHash] = useState<string | null>(null);
   const [auditId, setAuditId] = useState<string | null>(null);
 
+  const accept = challenge?.accepts[0];
+  const targetChainId = accept ? parseChainIdFromNetwork(accept.network) : NaN;
+  const decimals = accept?.extra?.decimals ?? 6;
+
+  // Live ZGUSD balance — read once we know the asset address from the challenge.
+  const tcidLiteral = (Number.isFinite(targetChainId) ? targetChainId : undefined) as
+    | 16602 | 11155111 | 84532 | undefined;
+  const { data: buyerBal, refetch: refetchBuyer } = useReadContract({
+    address: accept?.asset, abi: ERC20_BALANCE_ABI, functionName: 'balanceOf',
+    args: address ? [address] : undefined,
+    chainId: tcidLiteral,
+    query: { enabled: Boolean(accept?.asset && address) },
+  });
+  const { data: sellerBal, refetch: refetchSeller } = useReadContract({
+    address: accept?.asset, abi: ERC20_BALANCE_ABI, functionName: 'balanceOf',
+    args: accept?.payTo ? [accept.payTo] : undefined,
+    chainId: tcidLiteral,
+    query: { enabled: Boolean(accept?.asset && accept?.payTo) },
+  });
+
+  // Pre-fetch the challenge on mount so the ticker comes alive immediately.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await fetch(`${BACKEND}/report/${tokenId}`);
+        if (r.status !== 402) return;
+        const headerVal = r.headers.get('PAYMENT-REQUIRED');
+        if (!headerVal) return;
+        const ch = JSON.parse(atob(headerVal));
+        if (!cancelled) setChallenge(ch);
+      } catch { /* server offline — leave ticker quiet */ }
+    })();
+    return () => { cancelled = true; };
+  }, [tokenId]);
+
+  const priceLabel = useMemo(() => {
+    if (!accept) return '—';
+    return Number(formatUnits(BigInt(accept.maxAmountRequired), decimals)).toFixed(2);
+  }, [accept, decimals]);
+
+  const ticker = useMemo(() => {
+    return {
+      buyer: buyerBal !== undefined ? formatUnits(buyerBal as bigint, decimals) : null,
+      seller: sellerBal !== undefined ? formatUnits(sellerBal as bigint, decimals) : null,
+    };
+  }, [buyerBal, sellerBal, decimals]);
+
   async function buy() {
     setReport(null); setError(null); setAuthzTxHash(null); setSettleTxHash(null); setAuditId(null);
     try {
       if (!walletClient || !address) throw new Error('wallet not connected');
 
-      // 1. GET /report/:id → expect 402 with full PAYMENT-REQUIRED challenge
+      // 1. Refresh the challenge (in case price/payTo changed).
       setPhase('fetching');
       const r1 = await fetch(`${BACKEND}/report/${tokenId}`);
       if (r1.status !== 402) throw new Error(`expected 402, got ${r1.status}`);
       const challengeHeader = r1.headers.get('PAYMENT-REQUIRED');
       if (!challengeHeader) throw new Error('no PAYMENT-REQUIRED header');
-      const challenge = JSON.parse(atob(challengeHeader));
+      const ch = JSON.parse(atob(challengeHeader));
+      setChallenge(ch);
       setPhase('challenged');
 
       // 2. Read everything from the challenge — zero hardcoded knowledge.
-      const accept = challenge.accepts[0];
-      const targetChainId = parseChainIdFromNetwork(accept.network);
-      if (Number.isNaN(targetChainId)) throw new Error(`unknown network: ${accept.network}`);
-      const domainName = accept.extra?.name;
-      const domainVersion = accept.extra?.version;
+      const a = ch.accepts[0] as ChallengeAccept;
+      const tcid = parseChainIdFromNetwork(a.network);
+      if (Number.isNaN(tcid)) throw new Error(`unknown network: ${a.network}`);
+      const domainName = a.extra?.name;
+      const domainVersion = a.extra?.version;
       if (!domainName || !domainVersion) {
-        throw new Error('challenge missing extra.name/extra.version (server must include these)');
+        throw new Error('challenge missing extra.name/extra.version');
+      }
+      if (chainId !== tcid) {
+        await switchChainAsync({ chainId: tcid });
       }
 
-      // Switch wallet to the right chain if needed
-      if (chainId !== targetChainId) {
-        await switchChainAsync({ chainId: targetChainId });
-      }
-
-      // 3. Build EIP-3009 TransferWithAuthorization typed data and ask the wallet to sign
+      // 3. Sign EIP-3009 TransferWithAuthorization.
       setPhase('paying');
       const now = Math.floor(Date.now() / 1000);
       const validAfter = BigInt(now - 60);
       const validBefore = BigInt(now + 600);
       const nonce = randomNonce();
-      const value = BigInt(accept.maxAmountRequired);
+      const value = BigInt(a.maxAmountRequired);
 
       const signature = await walletClient.signTypedData({
         account: address,
         domain: {
           name: domainName,
           version: domainVersion,
-          chainId: targetChainId,
-          verifyingContract: accept.asset as `0x${string}`,
+          chainId: tcid,
+          verifyingContract: a.asset,
         },
         types: {
           TransferWithAuthorization: [
@@ -104,7 +169,7 @@ export function BuyPage() {
         primaryType: 'TransferWithAuthorization',
         message: {
           from: address,
-          to: accept.payTo,
+          to: a.payTo,
           value,
           validAfter,
           validBefore,
@@ -112,15 +177,15 @@ export function BuyPage() {
         },
       });
 
-      // 4. Build the PAYMENT-SIGNATURE envelope per x402 spec
+      // 4. Build PAYMENT-SIGNATURE envelope.
       const paymentPayload = {
         x402Version: 2,
-        accepted: accept,
+        accepted: a,
         payload: {
           signature,
           authorization: {
             from: address,
-            to: accept.payTo,
+            to: a.payTo,
             value: value.toString(),
             validAfter: validAfter.toString(),
             validBefore: validBefore.toString(),
@@ -130,13 +195,10 @@ export function BuyPage() {
       };
       const paymentSig = btoa(JSON.stringify(paymentPayload));
 
-      // 5. Re-fetch with PAYMENT-SIGNATURE → server settles real ZGUSD on chain
+      // 5. Re-fetch — server settles real ZGUSD on chain.
       setPhase('settling');
       const r2 = await fetch(`${BACKEND}/report/${tokenId}`, {
-        headers: {
-          'PAYMENT-SIGNATURE': paymentSig,
-          'X-Buyer-Address': address,
-        },
+        headers: { 'PAYMENT-SIGNATURE': paymentSig, 'X-Buyer-Address': address },
       });
       if (!r2.ok) throw new Error(`server unlock failed: ${r2.status} ${await r2.text()}`);
       const body = await r2.json();
@@ -145,6 +207,10 @@ export function BuyPage() {
       setSettleTxHash(body.settleTxHash ?? null);
       setAuditId(body.auditId ?? null);
       setPhase('unlocked');
+
+      // Refresh balances after settlement.
+      void refetchBuyer();
+      void refetchSeller();
     } catch (e: any) {
       setError(e?.shortMessage ?? e?.message ?? String(e));
       setPhase('failed');
@@ -152,186 +218,328 @@ export function BuyPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="card space-y-3">
-        <h1 className="text-xl font-semibold">Buy a Thornbury report</h1>
-        <p className="text-ink-400 text-sm">
-          The agent's <code className="font-mono text-accent">/report/:tokenId</code> endpoint returns
-          HTTP 402. Your wallet signs an EIP-712 <code>TransferWithAuthorization</code> per the x402 spec —
-          the server settles by calling <code>ZGUSD.transferWithAuthorization()</code> on 0G Galileo, then
-          authorizes you on the iNFT. Real ZGUSD moves on chain.
-        </p>
-
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <Field label="Token ID">
-            <input
-              className="w-full bg-ink-900/60 border border-ink-200/10 rounded-md p-2 font-mono"
-              value={tokenId}
-              onChange={(e) => setTokenId(e.target.value)}
-            />
-          </Field>
-          <Field label="You hold">
-            <select
-              className="w-full bg-ink-900/60 border border-ink-200/10 rounded-md p-2 font-mono"
-              value={sourceToken}
-              onChange={(e) => setSourceToken(e.target.value as any)}
-            >
-              <option value="ZGUSD">ZGUSD (0G Galileo)</option>
-              <option value="DAI">DAI (Sepolia)</option>
-              <option value="USDC">USDC (Sepolia)</option>
-              <option value="USDT">USDT (Polygon Amoy)</option>
-            </select>
-          </Field>
-          <Field label="Server wants">
-            <div className="font-mono text-accent p-2">ZGUSD on 0G Galileo</div>
-          </Field>
+    <div className="space-y-8">
+      {/* Header */}
+      <header className="grid grid-cols-12 gap-6 pb-6 border-b border-rule">
+        <div className="col-span-12 lg:col-span-7">
+          <div className="key mb-3">FILE 0003 · ORDER&nbsp;ENTRY&nbsp;TERMINAL</div>
+          <h1 className="font-mono text-[clamp(2rem,4.4vw,3.4rem)] leading-[0.95] text-bone">
+            settle access via{' '}
+            <span className="font-display italic text-phosphor glow-phosphor">x402.</span>
+          </h1>
+          <p className="mt-3 text-bone-dim text-sm max-w-xl">
+            <code className="font-mono text-phosphor">/report/:tokenId</code> returns HTTP&nbsp;402.
+            Your wallet signs an EIP-712{' '}
+            <code className="font-mono text-bone">TransferWithAuthorization</code> per the x402&nbsp;spec.
+            The server settles by calling{' '}
+            <code className="font-mono text-bone">ZGUSD.transferWithAuthorization()</code>{' '}
+            on 0G Galileo, then authorises you on the iNFT. Real stablecoin moves on chain.
+          </p>
         </div>
-
-        <div className="flex gap-3 items-center">
-          <button
-            className="btn-primary"
-            disabled={!isConnected || phase === 'paying' || phase === 'settling' || phase === 'fetching'}
-            onClick={buy}
-          >
-            {phase === 'idle' && 'Pay $0.50 →'}
-            {phase === 'fetching' && 'Fetching report…'}
-            {phase === 'challenged' && 'Building x402 payment…'}
-            {phase === 'paying' && `Swapping ${sourceToken} → USDC via Uniswap…`}
-            {phase === 'settling' && 'Settling payment…'}
-            {phase === 'unlocked' && 'Pay again'}
-            {phase === 'failed' && 'Retry'}
-          </button>
-          {!isConnected && <span className="text-sm text-warn">Connect a wallet to pay.</span>}
-        </div>
-
-        {error && (
-          <div className="text-sm text-bad">Error: {error}</div>
-        )}
-      </div>
-
-      {/* Phase trace — judge-pleasing visualization */}
-      <PhaseTrace
-        phase={phase}
-        sourceToken={sourceToken}
-        address={address ?? null}
-        tokenId={tokenId}
-        authzTxHash={authzTxHash}
-        auditId={auditId}
-      />
-
-      {/* Real proof block */}
-      {(authzTxHash || auditId || settleTxHash) && (
-        <div className="card space-y-2">
-          <div className="text-xs text-ink-400 uppercase tracking-wider">on-chain proof</div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
-            <div>
-              <div className="text-ink-400 text-xs mb-1">x402 settle (ZGUSD)</div>
-              <TxLink hash={settleTxHash} chainId={16602} showExplorer head={10} tail={8} />
+        <div className="col-span-12 lg:col-span-5 lg:pl-6 lg:border-l lg:border-rule">
+          {/* Live ticker block */}
+          <div className="bracket-frame-tight">
+            <div className="flex items-center justify-between mb-3">
+              <span className="key">ZGUSD&nbsp;·&nbsp;LIVE</span>
+              <span className="chip chip-on">
+                <span className="pip pip-on animate-pulse-soft" />
+                MARKET&nbsp;OPEN
+              </span>
             </div>
-            <div>
-              <div className="text-ink-400 text-xs mb-1">authorizeUsage (AgentNFT)</div>
-              <TxLink hash={authzTxHash} chainId={16602} showExplorer head={10} tail={8} />
-            </div>
-            <div>
-              <div className="text-ink-400 text-xs mb-1">KeeperHub audit</div>
-              <span className="font-mono text-xs">{auditId ?? '—'}</span>
+            <div className="space-y-2 text-sm font-mono nums-tabular">
+              <div className="flex items-baseline justify-between border-b border-rule pb-2">
+                <span className="text-bone-dim text-[0.66rem] uppercase tracking-widest">PRICE</span>
+                <span className="text-phosphor text-2xl font-display italic glow-phosphor">
+                  {priceLabel}
+                </span>
+                <span className="text-bone-dim/70 text-[0.66rem] uppercase tracking-widest">ZGUSD</span>
+              </div>
+              <Row k="YOU HOLD" v={ticker.buyer ?? '—'} unit="ZGUSD" tone="bone" />
+              <Row k="SELLER" v={ticker.seller ?? '—'} unit="ZGUSD" tone="dim" />
+              <Row
+                k="ASSET"
+                v={accept ? shorten(accept.asset, 8, 6) : '—'}
+                tone="dim"
+                tip={accept?.asset}
+              />
+              <Row
+                k="PAY TO"
+                v={accept ? shorten(accept.payTo, 8, 6) : '—'}
+                tone="dim"
+                tip={accept?.payTo}
+              />
             </div>
           </div>
         </div>
+      </header>
+
+      {/* 3-column working area */}
+      <section className="grid grid-cols-12 gap-4">
+        {/* Order entry */}
+        <div className="col-span-12 lg:col-span-5 bracket-frame">
+          <div className="panel-heading mb-4">ORDER&nbsp;ENTRY</div>
+
+          <div className="space-y-4">
+            <label className="block">
+              <div className="key mb-2">TOKEN&nbsp;ID</div>
+              <input
+                className="field"
+                value={tokenId}
+                onChange={(e) => setTokenId(e.target.value)}
+                placeholder="agent token id"
+              />
+            </label>
+
+            <label className="block">
+              <div className="key mb-2">PAY&nbsp;WITH</div>
+              <select className="field-select" defaultValue="ZGUSD">
+                <option value="ZGUSD">ZGUSD · 0G GALILEO</option>
+              </select>
+              <div className="mt-1.5 text-[0.62rem] uppercase tracking-widest text-bone-dim/60">
+                cross-token swap (Uniswap pay-with-any) — v0.2
+              </div>
+            </label>
+
+            <div className="rule" />
+
+            <div className="ledger">
+              <dt>SCHEME</dt>      <dd>{accept?.scheme ?? 'exact'}</dd>
+              <dt>NETWORK</dt>     <dd>{accept?.network ?? '—'}</dd>
+              <dt>DOMAIN</dt>      <dd>{accept?.extra?.name ?? '—'} v{accept?.extra?.version ?? '—'}</dd>
+              <dt>DECIMALS</dt>    <dd>{decimals}</dd>
+            </div>
+
+            <button
+              className="key-cap w-full justify-center"
+              disabled={!isConnected || phase === 'paying' || phase === 'settling' || phase === 'fetching'}
+              onClick={buy}
+            >
+              {phase === 'fetching'   && (<><span className="pip pip-on animate-pulse-soft" />FETCHING…</>)}
+              {phase === 'challenged' && (<><span className="pip pip-on animate-pulse-soft" />SIGNING…</>)}
+              {phase === 'paying'     && (<><span className="pip pip-on animate-pulse-soft" />SIGN&nbsp;IN&nbsp;WALLET</>)}
+              {phase === 'settling'   && (<><span className="pip pip-go animate-pulse-soft" />SETTLING…</>)}
+              {phase === 'unlocked'   && (<><span className="pip pip-go" />UNLOCKED · PAY&nbsp;AGAIN</>)}
+              {phase === 'failed'     && (<><span className="pip pip-bad" />RETRY</>)}
+              {phase === 'idle'       && (<>EXECUTE&nbsp;ORDER&nbsp;▶</>)}
+            </button>
+
+            {!isConnected && (
+              <div className="font-mono text-[0.7rem] uppercase tracking-widest text-ferric flex items-center gap-2">
+                <span className="pip pip-bad" /> AUTH&nbsp;NODE&nbsp;OFFLINE
+              </div>
+            )}
+            {error && (
+              <div className="bracket-frame-tight border-ferric/40 text-sm">
+                <div className="key mb-1 text-ferric">▌ ABORT</div>
+                <div className="text-bone font-mono text-xs break-all">{error}</div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Phase trace */}
+        <div className="col-span-12 lg:col-span-7">
+          <PhaseTrace
+            phase={phase}
+            tokenId={tokenId}
+            authzTxHash={authzTxHash}
+          />
+        </div>
+      </section>
+
+      {/* On-chain proof block — the hero of the success state */}
+      {(authzTxHash || settleTxHash || auditId) && (
+        <section className="bracket-frame relative overflow-hidden">
+          <div
+            className="absolute inset-x-0 top-0 h-px bg-phosphor"
+            aria-hidden
+          />
+          <div className="flex items-baseline justify-between mb-4">
+            <span className="panel-heading">ON-CHAIN&nbsp;PROOF</span>
+            <span className="chip chip-go">
+              <span className="pip pip-go" />
+              3&nbsp;ARTIFACTS&nbsp;CONFIRMED
+            </span>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <ProofCell
+              index={1}
+              label="x402 SETTLE · ZGUSD"
+              detail="ZGUSD.transferWithAuthorization()"
+              hash={settleTxHash}
+              chainId={16602}
+            />
+            <ProofCell
+              index={2}
+              label="authorizeUsage · iNFT"
+              detail={`AgentNFT.authorizeUsage(${tokenId}, buyer)`}
+              hash={authzTxHash}
+              chainId={16602}
+            />
+            <ProofCellPlain
+              index={3}
+              label="KEEPERHUB AUDIT"
+              detail="evidence id · cryptographic provenance"
+              value={auditId ?? '—'}
+            />
+          </div>
+        </section>
       )}
 
       {/* Report */}
       {report && (
-        <div className="card border-accent/30 ring-1 ring-accent/30 space-y-2">
-          <div className="flex items-center gap-2">
-            <span className="text-accent">✓</span>
-            <h2 className="font-semibold">Report unlocked</h2>
-            <span className="pill-ok">authorizeUsage(#{tokenId}, {shorten(address ?? '0x', 4, 4)})</span>
+        <section className="bracket-frame">
+          <div className="flex items-baseline justify-between mb-3">
+            <span className="panel-heading">REPORT&nbsp;·&nbsp;DECLASSIFIED</span>
+            <span className="chip chip-go">
+              <span className="pip pip-go" />
+              authorizeUsage(#{tokenId}, {shorten(address ?? '0x', 4, 4)})
+            </span>
           </div>
-          <article className="prose prose-invert prose-sm max-w-none whitespace-pre-line">
+          <article className="prose prose-invert prose-sm max-w-none whitespace-pre-line font-mono text-bone leading-relaxed">
             {report}
           </article>
-        </div>
+        </section>
       )}
+    </div>
+  );
+}
+
+function Row({
+  k, v, unit, tone = 'bone', tip,
+}: {
+  k: string; v: string; unit?: string;
+  tone?: 'bone' | 'dim' | 'phosphor';
+  tip?: string;
+}) {
+  const color =
+    tone === 'phosphor' ? 'text-phosphor' :
+    tone === 'dim'      ? 'text-bone-dim' :
+                          'text-bone';
+  return (
+    <div className="flex items-baseline justify-between gap-3" title={tip}>
+      <span className="text-bone-dim/70 text-[0.66rem] uppercase tracking-widest">{k}</span>
+      <span className={`${color} flex items-baseline gap-1.5`}>
+        <span>{v}</span>
+        {unit && <span className="text-bone-dim/70 text-[0.62rem] uppercase tracking-widest">{unit}</span>}
+      </span>
+    </div>
+  );
+}
+
+function ProofCell({
+  index, label, detail, hash, chainId,
+}: {
+  index: number;
+  label: string;
+  detail: string;
+  hash: string | null;
+  chainId: number;
+}) {
+  return (
+    <div className="border-l border-phosphor/40 pl-4">
+      <div className="flex items-center gap-2 mb-2">
+        <span className="font-display italic text-phosphor text-2xl leading-none">
+          0{index}
+        </span>
+        <span className="key">{label}</span>
+      </div>
+      <div className="text-[0.66rem] uppercase tracking-widest text-bone-dim/60 mb-2 font-mono">
+        {detail}
+      </div>
+      <TxLink hash={hash} chainId={chainId} showExplorer head={12} tail={10} />
+    </div>
+  );
+}
+
+function ProofCellPlain({
+  index, label, detail, value,
+}: {
+  index: number;
+  label: string;
+  detail: string;
+  value: string;
+}) {
+  return (
+    <div className="border-l border-phosphor/40 pl-4">
+      <div className="flex items-center gap-2 mb-2">
+        <span className="font-display italic text-phosphor text-2xl leading-none">
+          0{index}
+        </span>
+        <span className="key">{label}</span>
+      </div>
+      <div className="text-[0.66rem] uppercase tracking-widest text-bone-dim/60 mb-2 font-mono">
+        {detail}
+      </div>
+      <span className="font-mono text-[0.85rem] text-bone break-all">{value}</span>
     </div>
   );
 }
 
 function PhaseTrace({
-  phase, sourceToken, tokenId, authzTxHash,
+  phase, tokenId, authzTxHash,
 }: {
   phase: Phase;
-  sourceToken: string;
-  address: string | null;
   tokenId: string;
   authzTxHash: string | null;
-  auditId: string | null;
 }) {
-  const steps: { id: Phase; label: string }[] = [
-    { id: 'fetching',   label: 'GET /report/:id (no payment header)' },
-    { id: 'challenged', label: 'Server returns HTTP 402 with PAYMENT-REQUIRED' },
-    { id: 'paying',     label: `Sign EIP-712 TransferWithAuthorization (asset: ${sourceToken})` },
-    { id: 'settling',   label: 'Send PAYMENT-SIGNATURE; server settles + calls authorizeUsage' },
-    { id: 'unlocked',   label: `agentNFT.authorizeUsage(${tokenId}, buyer) → on-chain` },
+  const steps: { id: Phase; code: string; label: string; sub: string }[] = [
+    { id: 'fetching',   code: 'A', label: 'GET /report/:id',                   sub: 'no payment header' },
+    { id: 'challenged', code: 'B', label: '402 PAYMENT-REQUIRED',              sub: 'parse accepts[0]' },
+    { id: 'paying',     code: 'C', label: 'sign EIP-712 TransferWithAuth.',    sub: 'wallet typed-data prompt' },
+    { id: 'settling',   code: 'D', label: 'ZGUSD.transferWithAuthorization()', sub: 'server submits on chain' },
+    { id: 'unlocked',   code: 'E', label: `agentNFT.authorizeUsage(${tokenId})`, sub: 'iNFT permission grant' },
   ];
   const order: Phase[] = ['idle', 'fetching', 'challenged', 'paying', 'settling', 'unlocked'];
   const idx = order.indexOf(phase);
 
   return (
-    <div className="card space-y-1">
-      <div className="text-xs text-ink-400 mb-2 uppercase tracking-wider">payment trace</div>
-      {steps.map((s, i) => {
-        const stepIdx = order.indexOf(s.id);
-        const stage = idx > stepIdx ? 'done' : idx === stepIdx ? 'active' : 'pending';
-        return (
-          <div key={s.id} className="flex items-center gap-3 py-1.5">
-            <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
-              stage === 'done'    ? 'bg-accent' :
-              stage === 'active'  ? 'bg-warn animate-pulse-slow' :
-                                    'bg-ink-200/20'
-            }`} />
-            <span className={`text-sm ${
-              stage === 'pending' ? 'text-ink-400' : 'text-ink-100'
-            }`}>{s.label}</span>
-            {stage === 'done' && i === order.indexOf('unlocked') - 1 && authzTxHash && (
-              <span className="ml-auto inline-flex items-center gap-1 pill-ok">
-                tx →&nbsp;<TxLink hash={authzTxHash} chainId={16602} className="!text-current" head={6} tail={4} />
-              </span>
-            )}
-          </div>
-        );
-      })}
+    <div className="bracket-frame h-full">
+      <div className="flex items-baseline justify-between mb-4">
+        <span className="panel-heading">PAYMENT&nbsp;TRACE</span>
+        <span className="font-mono text-[0.66rem] uppercase tracking-widest text-bone-dim/70">
+          x402 · EIP-3009 · 0G&nbsp;GALILEO
+        </span>
+      </div>
+      <ol className="relative">
+        <span className="absolute left-[11px] top-1 bottom-1 w-px bg-rule" aria-hidden />
+        {steps.map((s) => {
+          const stepIdx = order.indexOf(s.id);
+          const stage = idx > stepIdx ? 'done' : idx === stepIdx ? 'active' : 'pending';
+          const tone =
+            stage === 'done'   ? 'text-phosphor' :
+            stage === 'active' ? 'text-scope animate-phosphor-pulse' :
+                                 'text-bone-dim/40';
+          const pip =
+            stage === 'done'   ? 'pip-on'   :
+            stage === 'active' ? 'pip-go animate-pulse-soft'   :
+                                 'pip-idle';
+
+          return (
+            <li key={s.id} className="relative pl-9 py-3 first:pt-0 last:pb-0">
+              <span className={`absolute left-[7px] top-[18px] pip ${pip}`} />
+              <div className="flex items-baseline gap-3">
+                <span className={`font-mono text-[0.7rem] tracking-widest ${tone}`}>
+                  STEP·{s.code}
+                </span>
+                <span className={`font-mono text-sm ${stage === 'pending' ? 'text-bone-dim/50' : 'text-bone'}`}>
+                  {s.label}
+                </span>
+                {stage === 'done' && s.id === 'settling' && authzTxHash && (
+                  <span className="ml-auto">
+                    <TxLink hash={authzTxHash} chainId={16602} head={6} tail={4} />
+                  </span>
+                )}
+              </div>
+              <div className={`text-[0.66rem] uppercase tracking-widest font-mono mt-1 ${
+                stage === 'pending' ? 'text-bone-dim/30' : 'text-bone-dim/70'
+              }`}>
+                {s.sub}
+              </div>
+            </li>
+          );
+        })}
+      </ol>
     </div>
   );
 }
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <label className="block">
-      <div className="text-ink-400 text-xs mb-1">{label}</div>
-      {children}
-    </label>
-  );
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((r) => setTimeout(r, ms));
-}
-
-const MOCK_REPORT = `Thornbury — Research synthesis (token #1234)
-
-QUESTION: What are the most cited cell-free protein synthesis papers from Q1 2026?
-
-KEY FINDINGS
-• Two preprints stand out: Murray et al. (2026, 2601.00001) and Liu & Park (2026, 2601.00002).
-• Both report yields >2× over Q4 2025 baselines via codon-optimization heuristics.
-• A consistent design pattern: pre-filtered tRNA pool + reduced-scale fed-batch architecture.
-
-OPEN QUESTIONS
-• None of the papers report long-term shelf stability beyond 90 days.
-• Reproducibility data on the Murray et al. yield improvement is limited to one lab.
-
-PROOF-OF-PROVENANCE
-This report was produced by a TEE-attested chain of inference calls (model: glm-5-fp8).
-All sources are referenced in the agent's event log (event hashes #1-#7) on 0G Storage.
-You can replay the agent's full reasoning in the "Replay" tab.`;
