@@ -467,6 +467,7 @@ async function runResearchAsync(session: Session) {
     defaultModel: process.env.ZG_COMPUTE_DEFAULT_MODEL ?? 'glm-5-fp8',
     agentNFTAddress: process.env.AGENT_NFT_ADDRESS,
     verifierAddress: process.env.AETHER_VERIFIER_ADDRESS,
+    storageMode: 'batched', // single 0G Storage upload at flush() — much faster on testnet
   });
 
   // Pipe Aether events to the session

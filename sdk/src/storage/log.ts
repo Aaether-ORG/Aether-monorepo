@@ -58,10 +58,6 @@ export async function createZGStorage(config: ZGStorageConfig): Promise<ZGStorag
     const memData = new MemData(data);
     const [tx, err] = await indexer.upload(memData, config.rpcUrl, config.signer as any, {
       encryption: { type: 'aes256', key: storageKey },
-      // Testnet flake: storage indexer often accepts the upload tx but never
-      // signals segment finalisation, blocking the SDK's polling loop forever.
-      // We submit the tx, then return as soon as it's on chain — segments
-      // finalise in the background without holding up the mint.
       finalityRequired: false,
     } as any);
     if (err !== null) throw new Error(`0G Storage upload failed: ${err}`);
