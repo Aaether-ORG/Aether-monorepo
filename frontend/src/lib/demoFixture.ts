@@ -15,8 +15,8 @@ const now = Date.now();
 let t = now - 60_000;
 const pushTime = () => { t += Math.floor(2000 + Math.random() * 4000); return t; };
 
-function push<T extends AetherEvent>(e: Omit<T, 'prevHash'>): T {
-  const event = { ...e, prevHash: prev } as unknown as T;
+function push(e: any): AetherEvent {
+  const event = { ...e, prevHash: prev } as AetherEvent;
   // Pseudo hash chain: just rotate by index for demo purposes
   prev = (`0x${(parseInt(prev.slice(-2), 16) + 1).toString(16).padStart(2, '0')}${prev.slice(2, -2)}aa`) as Hex;
   return event;

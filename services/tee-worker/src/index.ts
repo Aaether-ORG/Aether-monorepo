@@ -16,7 +16,7 @@ import 'dotenv/config';
 import { ethers } from 'ethers';
 import { createServer } from 'node:http';
 import { sealKey, openKey, publicKeyFromPrivate, generateMasterKey } from '@aether/sdk';
-import type { Hex } from '@aether/sdk';
+type Hex = `0x${string}`;
 
 const PORT = Number(process.env.TEE_WORKER_PORT ?? 4000);
 const AUTHORITY_KEY = process.env.AETHER_TEE_AUTHORITY_KEY;

@@ -66,7 +66,7 @@ async function main() {
   ];
 
   // 1. Check availability
-  const isAvail = await registrar.available(label).catch(() => true);
+  const isAvail = await (registrar as any).available(label).catch(() => true);
   if (!isAvail) {
     console.log(`Label "${label}" already taken — skipping mint, only setting records.`);
   } else {
@@ -74,7 +74,7 @@ async function main() {
     console.log('\nMinting + setting records (atomic)...');
     const keys = records.map(([k]) => k);
     const values = records.map(([, v]) => v);
-    const tx = await registrar.registerWithTexts(label, wallet.address, keys, values);
+    const tx = await (registrar as any).registerWithTexts(label, wallet.address, keys, values);
     console.log(`  tx: ${tx.hash}`);
     console.log(`  https://sepolia.basescan.org/tx/${tx.hash}`);
     const r = await tx.wait();
@@ -84,13 +84,13 @@ async function main() {
 
   // If label already existed, just refresh records via direct setText
   if (!isAvail) {
-    const baseNode = await registry.baseNode();
-    const node = await registry.makeNode(baseNode, label);
+    const baseNode = await (registry as any).baseNode();
+    const node = await (registry as any).makeNode(baseNode, label);
     console.log('\nSetting text records on existing subname...');
     for (const [k, v] of records) {
       console.log(`  setText  ${k}`);
       try {
-        const tx = await registry.setText(node, k, v);
+        const tx = await (registry as any).setText(node, k, v);
         await tx.wait();
       } catch (e: any) {
         console.log(`    skip (${e?.shortMessage ?? e?.message})`);

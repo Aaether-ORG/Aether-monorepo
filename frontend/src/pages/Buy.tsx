@@ -137,7 +137,7 @@ export function BuyPage() {
         throw new Error('challenge missing extra.name/extra.version');
       }
       if (chainId !== tcid) {
-        await switchChainAsync({ chainId: tcid });
+        await switchChainAsync({ chainId: tcid as 16602 | 11155111 | 84532 });
       }
 
       // 3. Sign EIP-3009 TransferWithAuthorization.
