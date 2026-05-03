@@ -104,13 +104,17 @@ All on **0G Galileo testnet — chain id 16602** unless otherwise noted.
 | AetherVerifier | `0x9f4FF2Bf926D63045023B5E3790AE13A39184070` | [view](https://chainscan-galileo.0g.ai/address/0x9f4FF2Bf926D63045023B5E3790AE13A39184070) |
 | ZGUSD (EIP-3009) | `0xcCd66655fF08b5A25a6bf4bc3b51d380c976AbfF` | [view](https://chainscan-galileo.0g.ai/address/0xcCd66655fF08b5A25a6bf4bc3b51d380c976AbfF) |
 | Thornbury iNFT | token #1 | [tx](https://chainscan-galileo.0g.ai) |
-| ENS root | `aaether.eth` (Sepolia) | [resolver](https://sepolia.app.ens.domains/aaether.eth) |
-| Durin L1 resolver | `0x8A968aB9eb8C084FBC44c531058Fc9ef945c3D61` (Sepolia) | – |
-| Durin L2 registry | `0x46f0058d5187b39c5cbdfa325637479bbfbf8a65` (Base Sepolia) | – |
-| DurinL2Registrar | `0x41CE8E3dF8b5828B2d90057D71164d089FF2312f` (Base Sepolia) | – |
+| **Ammonite (ENS)** — root name | `aaether.eth` (Sepolia) | [view](https://sepolia.app.ens.domains/aaether.eth) |
+| **Ammonite (ENS)** — L1 resolver (Durin stock) | `0x8A968aB9eb8C084FBC44c531058Fc9ef945c3D61` (Sepolia) | [view](https://sepolia.etherscan.io/address/0x8A968aB9eb8C084FBC44c531058Fc9ef945c3D61) |
+| **Ammonite (ENS)** — L2 registry (Durin) | `0x46f0058d5187b39c5cbdfa325637479bbfbf8a65` (Base Sepolia) | [view](https://sepolia.basescan.org/address/0x46f0058d5187b39c5cbdfa325637479bbfbf8a65) |
+| **Ammonite (ENS)** — DurinL2Registrar | `0x41CE8E3dF8b5828B2d90057D71164d089FF2312f` (Base Sepolia) | [view](https://sepolia.basescan.org/address/0x41CE8E3dF8b5828B2d90057D71164d089FF2312f) |
+| **Ammonite (ENS)** — CCIP-Read gateway | `pnpm ammonite:gateway` → `localhost:8080` (deploy to Cloudflare/Vercel) | – |
+| **Ammonite (ENS)** — custom AmmoniteResolver.sol | written but **not** deployed for demo (Durin's stock resolver was used instead — see note below) | – |
 | ERC-8004 IdentityRegistry | `0x8004A818BFB912233c491871b3d84c89A494BD9e` (Sepolia) | [view](https://sepolia.etherscan.io/address/0x8004A818BFB912233c491871b3d84c89A494BD9e) |
 | ERC-8004 agent id | `4098` | – |
 | Agent card (IPFS) | `ipfs://Qme9nLUt2z3MAB7VVcPMLfQh3XgZBRge9Mgfqs87NhG32z` | – |
+
+> **Note on AmmoniteResolver.sol** — `contracts/src/AmmoniteResolver.sol` is our custom L1 resolver (wildcard ENSIP-10 + CCIP-Read for dynamic keys). For the live demo we instead pointed `aaether.eth` at **Durin's stock L1 resolver** (`0x8A96…3D61`), since it already implements the L1↔L2 hop we need and works out of the box on Sepolia. The "Ammonite" submission is the **gateway + record schema + dynamic-key set**, not a custom resolver contract; the Solidity file is shipped for production use cases where the Durin resolver isn't a fit.
 
 > All testnet deployments. **Do not** reuse any of the keys committed to history — they are burnable testnet keys and should be rotated before any production use.
 

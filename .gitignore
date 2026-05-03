@@ -12,6 +12,7 @@ out/
 artifacts/
 cache/
 typechain-types/
+PRESENTATION.md
 *.tsbuildinfo
 
 # Local env (contains private keys + API tokens — NEVER commit)
