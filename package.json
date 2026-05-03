@@ -1,0 +1,56 @@
+{
+  "name": "aether",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Replayable, mintable agent runtime on 0G — every action a content-addressed event in 0G Storage; every inference TEE-attested via 0G Compute; agent identity transferable via ERC-7857 iNFTs.",
+  "license": "MIT",
+  "workspaces": [
+    "contracts",
+    "sdk",
+    "services/*",
+    "layers/*",
+    "examples/*",
+    "scripts",
+    "frontend"
+  ],
+  "scripts": {
+    "day0": "tsx scripts/day0/run-all.ts",
+    "day0:rpc": "tsx scripts/day0/01-rpc.ts",
+    "day0:balance": "tsx scripts/day0/02-balance.ts",
+    "day0:compute": "tsx scripts/day0/03-compute.ts",
+    "day0:storage": "tsx scripts/day0/04-storage.ts",
+    "day0:erc8004": "tsx scripts/day0/06-erc8004.ts",
+    "day0:x402": "tsx scripts/day0/08-x402.ts",
+    "day0:keeperhub": "tsx scripts/day0/09-keeperhub.ts",
+    "day0:ens": "tsx scripts/day0/10-ens.ts",
+    "frontend:dev": "pnpm --filter @aether/frontend dev",
+    "frontend:build": "pnpm --filter @aether/frontend build",
+    "thornbury:server": "pnpm --filter @aether/thornbury server",
+    "thornbury:research": "pnpm --filter @aether/thornbury research",
+    "tee:start": "pnpm --filter @aether/tee-worker start",
+    "ammonite:gateway": "pnpm --filter @aether/ammonite dev:gateway",
+    "e2e": "tsx scripts/e2e/start-all.ts",
+    "e2e:demo": "tsx scripts/e2e/demo-flow.ts",
+    "register:erc8004": "tsx scripts/registration/register-erc8004.ts",
+    "durin:set-registry": "tsx scripts/registration/durin-set-registry.ts",
+    "diagrams:export": "tsx scripts/diagrams/export.ts",
+    "build": "pnpm -r build",
+    "test": "pnpm -r test",
+    "clean": "pnpm -r clean && rm -rf node_modules",
+    "format": "prettier --write \"**/*.{ts,tsx,sol,md,json}\"",
+    "lint": "pnpm -r lint"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "dotenv": "^16.4.5",
+    "prettier": "^3.3.0",
+    "prettier-plugin-solidity": "^1.4.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0"
+  },
+  "engines": {
+    "node": ">=22.0.0",
+    "pnpm": ">=9.0.0"
+  },
+  "packageManager": "pnpm@9.12.3"
+}

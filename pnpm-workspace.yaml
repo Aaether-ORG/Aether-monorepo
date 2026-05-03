@@ -1,0 +1,8 @@
+packages:
+  - 'contracts'
+  - 'sdk'
+  - 'services/*'
+  - 'layers/*'
+  - 'examples/*'
+  - 'scripts'
+  - 'frontend'

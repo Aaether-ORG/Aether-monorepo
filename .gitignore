@@ -1,0 +1,39 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+.cache/
+
+# Build output
+dist/
+build/
+out/
+.next/
+.turbo/
+artifacts/
+cache/
+typechain-types/
+*.tsbuildinfo
+
+# Local env (contains private keys + API tokens — NEVER commit)
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+logs/
+
+# Local deployments
+deployments/*.local.json
+
+# IDE / OS
+.DS_Store
+.vscode/
+.idea/
+
+# Coverage
+coverage/
+
+# Local scratch
+.tmp/
+*.local

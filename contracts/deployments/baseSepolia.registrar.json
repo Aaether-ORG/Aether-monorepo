@@ -1,0 +1,8 @@
+{
+  "network": "baseSepolia",
+  "chainId": 84532,
+  "L2Registry": "0x46f0058d5187b39c5cbdfa325637479bbfbf8a65",
+  "DurinL2Registrar": "0x41CE8E3dF8b5828B2d90057D71164d089FF2312f",
+  "deployer": "0x73A5021c0935b79D46C2D650821b212dC5b3b9Eb",
+  "timestamp": "2026-04-30T20:16:00.454Z"
+}
