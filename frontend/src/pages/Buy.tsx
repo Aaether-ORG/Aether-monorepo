@@ -18,16 +18,16 @@ type Phase =
 export function BuyPage() {
   const { isConnected, address } = useAccount();
   const [tokenId, setTokenId] = useState(AETHER_TOKEN_ID);
-  const [sourceToken, setSourceToken] = useState<'DAI' | 'USDC' | 'USDT'>('USDC');
+  const [sourceToken, setSourceToken] = useState<'ZGUSD' | 'DAI' | 'USDC' | 'USDT'>('ZGUSD');
   const [phase, setPhase] = useState<Phase>('idle');
   const [report, setReport] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [authzTxHash, setAuthzTxHash] = useState<string | null>(null);
+  const [settleTxHash, setSettleTxHash] = useState<string | null>(null);
   const [auditId, setAuditId] = useState<string | null>(null);
-  const [paymentChallenge, setPaymentChallenge] = useState<any>(null);
 
   async function buy() {
-    setReport(null); setError(null); setAuthzTxHash(null); setAuditId(null); setPaymentChallenge(null);
+    setReport(null); setError(null); setAuthzTxHash(null); setSettleTxHash(null); setAuditId(null);
     try {
       // 1. GET /report/:id → expect 402
       setPhase('fetching');
@@ -36,7 +36,6 @@ export function BuyPage() {
       const challengeHeader = r1.headers.get('PAYMENT-REQUIRED');
       if (!challengeHeader) throw new Error('no PAYMENT-REQUIRED header');
       const challenge = JSON.parse(atob(challengeHeader));
-      setPaymentChallenge(challenge);
       setPhase('challenged');
 
       // 2. Sign payment via wallet (real EIP-712 / EIP-3009)
@@ -71,6 +70,7 @@ export function BuyPage() {
       const body = await r2.json();
       setReport(body.report);
       setAuthzTxHash(body.authzTxHash ?? null);
+      setSettleTxHash(body.settleTxHash ?? null);
       setAuditId(body.auditId ?? null);
       setPhase('unlocked');
     } catch (e: any) {
@@ -85,9 +85,9 @@ export function BuyPage() {
         <h1 className="text-xl font-semibold">Buy a Thornbury report</h1>
         <p className="text-ink-400 text-sm">
           The agent's <code className="font-mono text-accent">/report/:tokenId</code> endpoint returns
-          HTTP 402. Your wallet pays via x402. The Uniswap{' '}
-          <span className="text-accent">pay-with-any-token</span> plugin atomically swaps your
-          source token to USDC on Base, settles the payment, and unlocks the report.
+          HTTP 402. Your wallet signs an EIP-712 <code>TransferWithAuthorization</code> per the x402 spec —
+          the server settles by calling <code>ZGUSD.transferWithAuthorization()</code> on 0G Galileo, then
+          authorizes you on the iNFT. Real ZGUSD moves on chain.
         </p>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -104,13 +104,14 @@ export function BuyPage() {
               value={sourceToken}
               onChange={(e) => setSourceToken(e.target.value as any)}
             >
+              <option value="ZGUSD">ZGUSD (0G Galileo)</option>
               <option value="DAI">DAI (Sepolia)</option>
               <option value="USDC">USDC (Sepolia)</option>
               <option value="USDT">USDT (Polygon Amoy)</option>
             </select>
           </Field>
           <Field label="Server wants">
-            <div className="font-mono text-accent p-2">USDC on Base Sepolia</div>
+            <div className="font-mono text-accent p-2">ZGUSD on 0G Galileo</div>
           </Field>
         </div>
 
@@ -147,16 +148,20 @@ export function BuyPage() {
       />
 
       {/* Real proof block */}
-      {(authzTxHash || auditId) && (
+      {(authzTxHash || auditId || settleTxHash) && (
         <div className="card space-y-2">
           <div className="text-xs text-ink-400 uppercase tracking-wider">on-chain proof</div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
             <div>
-              <div className="text-ink-400 text-xs mb-1">authorizeUsage tx (0G Galileo)</div>
+              <div className="text-ink-400 text-xs mb-1">x402 settle (ZGUSD)</div>
+              <TxLink hash={settleTxHash} chainId={16602} showExplorer head={10} tail={8} />
+            </div>
+            <div>
+              <div className="text-ink-400 text-xs mb-1">authorizeUsage (AgentNFT)</div>
               <TxLink hash={authzTxHash} chainId={16602} showExplorer head={10} tail={8} />
             </div>
             <div>
-              <div className="text-ink-400 text-xs mb-1">KeeperHub audit ID</div>
+              <div className="text-ink-400 text-xs mb-1">KeeperHub audit</div>
               <span className="font-mono text-xs">{auditId ?? '—'}</span>
             </div>
           </div>
